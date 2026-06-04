@@ -48,8 +48,8 @@ def _table_columns(db_path: Path, table: str) -> list[str]:
         con.close()
 
 
-def test_schema_version_is_2():
-    assert db_manager.SCHEMA_VERSION == 2
+def test_schema_version_is_3():
+    assert db_manager.SCHEMA_VERSION == 3
 
 
 def test_init_creates_v2_tables(fresh_db):
@@ -64,6 +64,57 @@ def test_init_creates_v2_tables(fresh_db):
     actual = {r[0] for r in rows}
     missing = expected - actual
     assert not missing, f"Missing tables: {sorted(missing)}"
+
+
+def test_entries_table_has_ra_columns(fresh_db):
+    cur = db_manager.cur
+    assert cur is not None
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(entries)").fetchall()]
+    for required in ("ra_game_id", "ra_num_achievements"):
+        assert required in cols, f"entries is missing column {required}"
+
+
+def test_insert_entry_round_trips_ra_fields(fresh_db):
+    registry = load_registry(DB_ROOT)
+    for manifest in registry.manifests.values():
+        db_manager.register_source(manifest)
+
+    db_manager.insert_entry({
+        "title": "Super Mario Bros.",
+        "platform": "nes",
+        "regions": ["us"],
+        "links": [],
+        "ra_game_id": 111,
+        "ra_num_achievements": 30,
+    })
+
+    cur = db_manager.cur
+    assert cur is not None
+    row = cur.execute(
+        "SELECT ra_game_id, ra_num_achievements FROM entries"
+    ).fetchone()
+    assert row == (111, 30)
+
+
+def test_ra_fields_not_clobbered_on_reinsert(fresh_db):
+    registry = load_registry(DB_ROOT)
+    for manifest in registry.manifests.values():
+        db_manager.register_source(manifest)
+
+    base = {"title": "Super Mario Bros.", "platform": "nes",
+            "regions": ["us"], "links": []}
+
+    # First insert sets RA fields; a later insert of the same slug without
+    # them must not COALESCE them back to NULL.
+    db_manager.insert_entry({**base, "ra_game_id": 111, "ra_num_achievements": 30})
+    db_manager.insert_entry(dict(base))
+
+    cur = db_manager.cur
+    assert cur is not None
+    row = cur.execute(
+        "SELECT ra_game_id, ra_num_achievements FROM entries"
+    ).fetchone()
+    assert row == (111, 30)
 
 
 def test_links_table_has_v2_columns(fresh_db):

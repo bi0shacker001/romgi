@@ -19,7 +19,7 @@ from core import (
     load_registry,
 )
 from database import db_manager
-from parsers import gametdb, libretro, mame, no_intro, wii_rom_set_by_ghostware
+from parsers import gametdb, libretro, mame, no_intro, retroachievements, wii_rom_set_by_ghostware
 
 
 PARSERS = {
@@ -128,6 +128,12 @@ def process_platforms(
                     print(f"Parser '{parser_name}' not found.")
                     sys.exit(1)
                 entries_out = parser.parse(entries_out, parser_flags)
+
+            # RetroAchievements enrichment runs globally (not per-platform in
+            # platforms.yml): it must see the cleaned title, so it runs after
+            # the configured parsers, and it no-ops for platforms RA doesn't
+            # support. RA_CONSOLES is the single source of per-platform opt-in.
+            entries_out = retroachievements.parse(entries_out, {})
 
             entries_out = list(entries_out)
             ne, nl = _tag_links(entries_out, source)

@@ -19,7 +19,7 @@ DB_OLD_NAME = 'romdb_old.db'
 # Bump on any schema change. The app reads version.json#schema_version
 # and wipes its local catalog DB on mismatch.
 # Mirror of: lib/services/rom_database_service.dart `kAppExpectedSchemaVersion`.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 con: sqlite3.Connection | None = None
 cur: sqlite3.Cursor | None = None
@@ -113,6 +113,8 @@ def init_database() -> None:
             title TEXT,
             platform TEXT,
             boxart_url TEXT,
+            ra_game_id INTEGER,
+            ra_num_achievements INTEGER,
             FOREIGN KEY (platform) REFERENCES platforms (id)
         )
     ''')
@@ -322,7 +324,9 @@ def insert_entry(entry: dict[str, Any]) -> None:
                 search_key = COALESCE(search_key, ?),
                 title = COALESCE(title, ?),
                 platform = COALESCE(platform, ?),
-                boxart_url = COALESCE(boxart_url, ?)
+                boxart_url = COALESCE(boxart_url, ?),
+                ra_game_id = COALESCE(ra_game_id, ?),
+                ra_num_achievements = COALESCE(ra_num_achievements, ?)
             WHERE slug = ?
         ''', (
             entry.get('rom_id'),
@@ -330,6 +334,8 @@ def insert_entry(entry: dict[str, Any]) -> None:
             entry.get('title'),
             entry.get('platform'),
             entry.get('boxart_url'),
+            entry.get('ra_game_id'),
+            entry.get('ra_num_achievements'),
             entry['slug']
         ))
 
@@ -337,15 +343,18 @@ def insert_entry(entry: dict[str, Any]) -> None:
             _insert_link(entry['slug'], link, ignore_duplicates=True)
     else:
         cur.execute('''
-            INSERT INTO entries (slug, rom_id, search_key, title, platform, boxart_url)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO entries (slug, rom_id, search_key, title, platform, boxart_url,
+                                 ra_game_id, ra_num_achievements)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             entry.get('slug'),
             entry.get('rom_id'),
             entry.get('search_key'),
             entry.get('title'),
             entry.get('platform'),
-            entry.get('boxart_url')
+            entry.get('boxart_url'),
+            entry.get('ra_game_id'),
+            entry.get('ra_num_achievements')
         ))
 
         cur.execute('''

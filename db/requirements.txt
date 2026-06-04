@@ -4,3 +4,4 @@ unidecode
 playwright
 pyyaml
 pytest
+pytest-cov
