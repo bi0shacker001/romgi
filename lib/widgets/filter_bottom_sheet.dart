@@ -14,6 +14,7 @@ class FilterBottomSheet extends ConsumerStatefulWidget {
 class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
   late Set<String> _selectedPlatforms;
   late Set<String> _selectedRegions;
+  late bool _retroAchievementsOnly;
 
   @override
   void initState() {
@@ -22,6 +23,7 @@ class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
 
     _selectedPlatforms = searchState.selectedPlatforms.toSet();
     _selectedRegions = searchState.selectedRegions.toSet();
+    _retroAchievementsOnly = searchState.retroAchievementsOnly;
   }
 
   @override
@@ -70,6 +72,7 @@ class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
                         setState(() {
                           _selectedPlatforms.clear();
                           _selectedRegions.clear();
+                          _retroAchievementsOnly = false;
                         });
                       },
                       child: const Text('Clear all'),
@@ -86,6 +89,30 @@ class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
                   controller: scrollController,
                   padding: const EdgeInsets.all(16),
                   children: [
+                    // RetroAchievements section
+                    Text(
+                      'RetroAchievements',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('Has Achievements'),
+                          selected: _retroAchievementsOnly,
+                          onSelected: (selected) {
+                            setState(() {
+                              _retroAchievementsOnly = selected;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
                     // Regions section
                     Text(
                       'Regions',
@@ -151,6 +178,7 @@ class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
                         ref.read(searchProvider.notifier)
                           ..setSelectedPlatforms(_selectedPlatforms.toList())
                           ..setSelectedRegions(_selectedRegions.toList())
+                          ..setRetroAchievementsOnly(_retroAchievementsOnly)
                           ..search();
                         Navigator.pop(context);
                       },

@@ -269,7 +269,8 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     final isGridView = ref.watch(isGridViewProvider);
     final activeFilterCount =
         searchState.selectedPlatforms.length +
-        searchState.selectedRegions.length;
+        searchState.selectedRegions.length +
+        (searchState.retroAchievementsOnly ? 1 : 0);
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 

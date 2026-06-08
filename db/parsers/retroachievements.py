@@ -127,9 +127,17 @@ def parse(entries: list[dict[str, Any]], flags: dict[str, Any]) -> list[dict[str
         return entries
 
     min_achievements = (flags or {}).get('min_achievements', 1)
+    stats: dict[str, list[int]] = {}
 
     for entry in entries:
-        index = dbs.get(entry.get('platform', ''))
+        platform = entry.get('platform', '')
+        if platform not in RA_CONSOLES:
+            continue
+
+        counts = stats.setdefault(platform, [0, 0])
+        counts[1] += 1
+
+        index = dbs.get(platform)
         if not index:
             continue
 
@@ -137,5 +145,9 @@ def parse(entries: list[dict[str, Any]], flags: dict[str, Any]) -> list[dict[str
         if match and match[1] >= min_achievements:
             entry['ra_game_id'] = match[0]
             entry['ra_num_achievements'] = match[1]
+            counts[0] += 1
+
+    for platform, (matched, total) in stats.items():
+        print(f"      RetroAchievements: matched {matched}/{total} {platform} entries")
 
     return entries

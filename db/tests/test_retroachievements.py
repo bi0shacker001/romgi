@@ -143,6 +143,37 @@ def test_parse_no_data_dir_is_noop(ra_data_dir):
     assert out == [{'title': 'Super Mario Bros.', 'platform': 'nes'}]
 
 
+def test_parse_reports_match_counts(ra_data_dir, capsys):
+    write_console(ra_data_dir, NES, [
+        {'Title': 'Super Mario Bros.', 'ID': 111, 'NumAchievements': 30},
+    ])
+
+    entries = [
+        {'title': 'Super Mario Bros.', 'platform': 'nes'},  # matches
+        {'title': 'Unknown Game', 'platform': 'nes'},        # no match
+    ]
+    ra.parse(entries, {})
+
+    assert 'RetroAchievements: matched 1/2 nes entries' in capsys.readouterr().out
+
+
+def test_parse_supported_platform_without_data_reports_zero(ra_data_dir, capsys):
+    # smd has data loaded; nes is supported but has no data file, so its
+    # entries are counted as unmatched rather than skipped silently.
+    write_console(ra_data_dir, SMD, [
+        {'Title': 'Sonic', 'ID': 1, 'NumAchievements': 20},
+    ])
+
+    entries = [
+        {'title': 'Super Mario Bros.', 'platform': 'nes'},
+        {'title': 'Metroid', 'platform': 'nes'},
+    ]
+    out = ra.parse(entries, {})
+
+    assert 'ra_game_id' not in out[0]
+    assert 'RetroAchievements: matched 0/2 nes entries' in capsys.readouterr().out
+
+
 def test_load_dbs_skips_malformed_file(ra_data_dir):
     (ra_data_dir / f'{NES}.json').write_text('{not json', encoding='utf-8')
     write_console(ra_data_dir, SMD, [

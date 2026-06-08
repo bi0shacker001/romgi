@@ -6,6 +6,8 @@ class RomEntry {
   final String title;
   final String platform;
   final String? boxartUrl;
+  final int? raGameId;
+  final int? raNumAchievements;
   final List<String> regions;
   final List<DownloadLink> links;
 
@@ -15,9 +17,13 @@ class RomEntry {
     required this.title,
     required this.platform,
     this.boxartUrl,
+    this.raGameId,
+    this.raNumAchievements,
     required this.regions,
     required this.links,
   });
+
+  bool get hasRetroAchievements => raGameId != null;
 
   factory RomEntry.fromJson(Map<String, dynamic> json) {
     return RomEntry(
@@ -26,6 +32,8 @@ class RomEntry {
       title: json['title'] as String,
       platform: json['platform'] as String,
       boxartUrl: json['boxart_url'] as String?,
+      raGameId: json['ra_game_id'] as int?,
+      raNumAchievements: json['ra_num_achievements'] as int?,
       regions:
           (json['regions'] as List<dynamic>?)
               ?.map((region) => region as String)
@@ -48,6 +56,8 @@ class RomEntry {
       'title': title,
       'platform': platform,
       'boxart': boxartUrl,
+      'ra_game_id': raGameId,
+      'ra_num_achievements': raNumAchievements,
       'regions': regions,
       'links': links.map((link) => link.toJson()).toList(),
     };

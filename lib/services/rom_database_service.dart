@@ -11,7 +11,7 @@ import '../models/models.dart';
 /// Catalog schema this build expects. Mirror of
 /// db/database/db_manager.py:SCHEMA_VERSION. On mismatch the local DB
 /// is wiped and re-downloaded; no live migrations.
-const int kAppExpectedSchemaVersion = 2;
+const int kAppExpectedSchemaVersion = 3;
 
 class DatabaseVersion {
   final String version;
@@ -342,6 +342,7 @@ class RomDatabaseService {
     String? query,
     List<String>? platforms,
     List<String>? regions,
+    bool retroAchievementsOnly = false,
     int page = 1,
     int maxResults = 100,
   }) async {
@@ -353,6 +354,7 @@ class RomDatabaseService {
     if (query != null && query.isNotEmpty) {
       var searchSql = '''
         SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url,
+               e.ra_game_id, e.ra_num_achievements,
                GROUP_CONCAT(DISTINCT r.name) as region_names
         FROM entries e
         LEFT JOIN regions_entries re ON re.entry = e.slug
@@ -379,6 +381,10 @@ class RomDatabaseService {
         final placeholders = regions.map((_) => '?').join(',');
         allConditions.add('re.region IN ($placeholders)');
         params.addAll(regions);
+      }
+
+      if (retroAchievementsOnly) {
+        allConditions.add('e.ra_game_id IS NOT NULL');
       }
 
       if (allConditions.isNotEmpty) {
@@ -411,6 +417,7 @@ class RomDatabaseService {
     } else {
       var searchSql = '''
         SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url,
+               e.ra_game_id, e.ra_num_achievements,
                GROUP_CONCAT(DISTINCT r.name) as region_names
         FROM entries e
         LEFT JOIN regions_entries re ON re.entry = e.slug
@@ -429,6 +436,10 @@ class RomDatabaseService {
         final placeholders = regions.map((_) => '?').join(',');
         conditions.add('re.region IN ($placeholders)');
         params.addAll(regions);
+      }
+
+      if (retroAchievementsOnly) {
+        conditions.add('e.ra_game_id IS NOT NULL');
       }
 
       if (conditions.isNotEmpty) {
@@ -513,6 +524,8 @@ class RomDatabaseService {
       title: entry['title'] as String,
       platform: entry['platform'] as String,
       boxartUrl: entry['boxart_url'] as String?,
+      raGameId: entry['ra_game_id'] as int?,
+      raNumAchievements: entry['ra_num_achievements'] as int?,
       regions: regions,
       links: links,
     );
@@ -555,6 +568,8 @@ class RomDatabaseService {
         title: row['title'] as String,
         platform: row['platform'] as String,
         boxartUrl: row['boxart_url'] as String?,
+        raGameId: row['ra_game_id'] as int?,
+        raNumAchievements: row['ra_num_achievements'] as int?,
         regions: regionNames?.split(',') ?? [],
         links: [], // Links not needed for search results
       ));

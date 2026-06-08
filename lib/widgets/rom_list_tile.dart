@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../utils/utils.dart';
+import 'retro_achievements_badge.dart';
 
 class RomListTile extends StatelessWidget {
   final RomEntry entry;
@@ -67,6 +68,10 @@ class RomListTile extends StatelessWidget {
           const SizedBox(width: 4),
           if (isDownloaded) ...[
             const _DownloadedBadge(),
+            const SizedBox(width: 4),
+          ],
+          if (entry.hasRetroAchievements) ...[
+            RetroAchievementsBadge(entry: entry),
             const SizedBox(width: 4),
           ],
           if (entry.regions.isNotEmpty)

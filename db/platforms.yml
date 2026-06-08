@@ -1265,6 +1265,15 @@ mame:
     libretro: {}
     no_intro: {}
 fbneo:
+- source: minerva
+  format: rom
+  urls:
+  - ./FinalBurn Neo/arcade/
+  filter: (.*)\.zip
+  type: Game
+  parsers:
+    mame: {}
+    libretro: {}
 - source: internet_archive
   format: rom
   urls:

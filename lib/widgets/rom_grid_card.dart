@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../utils/utils.dart';
+import 'retro_achievements_badge.dart';
 
 class RomGridCard extends StatelessWidget {
   final RomEntry entry;
@@ -77,6 +78,12 @@ class RomGridCard extends StatelessWidget {
                           color: Colors.white,
                         ),
                       ),
+                    ),
+                  if (entry.hasRetroAchievements)
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: RetroAchievementsOverlayBadge(entry: entry),
                     ),
                 ],
               ),

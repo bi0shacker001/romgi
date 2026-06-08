@@ -8,6 +8,7 @@ class SearchState {
   final String query;
   final List<String> selectedPlatforms;
   final List<String> selectedRegions;
+  final bool retroAchievementsOnly;
   final SearchResult? result;
   final bool isLoading;
   final dynamic error;
@@ -16,6 +17,7 @@ class SearchState {
     this.query = '',
     this.selectedPlatforms = const [],
     this.selectedRegions = const [],
+    this.retroAchievementsOnly = false,
     this.result,
     this.isLoading = false,
     this.error,
@@ -25,6 +27,7 @@ class SearchState {
     String? query,
     List<String>? selectedPlatforms,
     List<String>? selectedRegions,
+    bool? retroAchievementsOnly,
     SearchResult? result,
     bool? isLoading,
     dynamic error,
@@ -34,6 +37,8 @@ class SearchState {
       query: query ?? this.query,
       selectedPlatforms: selectedPlatforms ?? this.selectedPlatforms,
       selectedRegions: selectedRegions ?? this.selectedRegions,
+      retroAchievementsOnly:
+          retroAchievementsOnly ?? this.retroAchievementsOnly,
       result: result ?? this.result,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
@@ -60,6 +65,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
             ? null
             : state.selectedPlatforms,
         regions: state.selectedRegions.isEmpty ? null : state.selectedRegions,
+        retroAchievementsOnly: state.retroAchievementsOnly,
         page: 1,
       );
 
@@ -85,6 +91,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
             ? null
             : state.selectedPlatforms,
         regions: state.selectedRegions.isEmpty ? null : state.selectedRegions,
+        retroAchievementsOnly: state.retroAchievementsOnly,
         page: nextPage,
       );
 
@@ -112,8 +119,16 @@ class SearchNotifier extends StateNotifier<SearchState> {
     state = state.copyWith(selectedRegions: regions);
   }
 
+  void setRetroAchievementsOnly(bool value) {
+    state = state.copyWith(retroAchievementsOnly: value);
+  }
+
   void clearFilters() {
-    state = state.copyWith(selectedPlatforms: [], selectedRegions: []);
+    state = state.copyWith(
+      selectedPlatforms: [],
+      selectedRegions: [],
+      retroAchievementsOnly: false,
+    );
   }
 
   void reset() {

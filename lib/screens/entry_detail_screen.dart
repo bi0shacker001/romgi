@@ -285,6 +285,19 @@ class _EntryDetailContentState extends ConsumerState<_EntryDetailContent> {
                       ).colorScheme.onSecondaryContainer,
                     ),
                   ),
+                  if (entry.hasRetroAchievements)
+                    _InfoChip(
+                      icon: Icons.emoji_events,
+                      label: entry.raNumAchievements != null
+                          ? '${entry.raNumAchievements} achievements'
+                          : 'RetroAchievements',
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onPrimaryContainer,
+                    ),
                 ],
               ),
               const SizedBox(height: 16),
