@@ -89,6 +89,8 @@ class RomDatabaseService {
   static const String _versionFileName = 'version.json';
 
   Database? _database;
+  bool _hasRaColumns = false;
+  bool get hasRaColumns => _hasRaColumns;
   final Dio _dio;
 
   RomDatabaseService({Dio? dio})
@@ -116,13 +118,6 @@ class RomDatabaseService {
     final dbPath = await _dbPath;
 
     if (!File(dbPath).existsSync()) {
-      return false;
-    }
-
-    // Old schema → wipe and re-download. Catalog is regenerable; the
-    // app's downloads/favorites DB lives elsewhere and isn't touched.
-    if (await isLocalDatabaseStale()) {
-      await deleteDatabase();
       return false;
     }
 
@@ -303,6 +298,8 @@ class RomDatabaseService {
 
     final dbPath = await _dbPath;
     _database = await openDatabase(dbPath, readOnly: true);
+    final cols = await _database!.rawQuery('PRAGMA table_info(entries)');
+    _hasRaColumns = cols.any((c) => c['name'] == 'ra_game_id');
     return _database!;
   }
 
@@ -338,6 +335,9 @@ class RomDatabaseService {
     }).toList();
   }
 
+  String get _raSelectColumns =>
+      _hasRaColumns ? ', e.ra_game_id, e.ra_num_achievements' : '';
+
   Future<SearchResult> search({
     String? query,
     List<String>? platforms,
@@ -353,8 +353,8 @@ class RomDatabaseService {
 
     if (query != null && query.isNotEmpty) {
       var searchSql = '''
-        SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url,
-               e.ra_game_id, e.ra_num_achievements,
+        SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url
+               $_raSelectColumns,
                GROUP_CONCAT(DISTINCT r.name) as region_names
         FROM entries e
         LEFT JOIN regions_entries re ON re.entry = e.slug
@@ -383,7 +383,7 @@ class RomDatabaseService {
         params.addAll(regions);
       }
 
-      if (retroAchievementsOnly) {
+      if (retroAchievementsOnly && _hasRaColumns) {
         allConditions.add('e.ra_game_id IS NOT NULL');
       }
 
@@ -416,8 +416,8 @@ class RomDatabaseService {
       );
     } else {
       var searchSql = '''
-        SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url,
-               e.ra_game_id, e.ra_num_achievements,
+        SELECT DISTINCT e.slug, e.rom_id, e.title, e.platform, e.boxart_url
+               $_raSelectColumns,
                GROUP_CONCAT(DISTINCT r.name) as region_names
         FROM entries e
         LEFT JOIN regions_entries re ON re.entry = e.slug
@@ -438,7 +438,7 @@ class RomDatabaseService {
         params.addAll(regions);
       }
 
-      if (retroAchievementsOnly) {
+      if (retroAchievementsOnly && _hasRaColumns) {
         conditions.add('e.ra_game_id IS NOT NULL');
       }
 
@@ -524,8 +524,8 @@ class RomDatabaseService {
       title: entry['title'] as String,
       platform: entry['platform'] as String,
       boxartUrl: entry['boxart_url'] as String?,
-      raGameId: entry['ra_game_id'] as int?,
-      raNumAchievements: entry['ra_num_achievements'] as int?,
+      raGameId: _hasRaColumns ? entry['ra_game_id'] as int? : null,
+      raNumAchievements: _hasRaColumns ? entry['ra_num_achievements'] as int? : null,
       regions: regions,
       links: links,
     );
@@ -568,8 +568,8 @@ class RomDatabaseService {
         title: row['title'] as String,
         platform: row['platform'] as String,
         boxartUrl: row['boxart_url'] as String?,
-        raGameId: row['ra_game_id'] as int?,
-        raNumAchievements: row['ra_num_achievements'] as int?,
+        raGameId: _hasRaColumns ? row['ra_game_id'] as int? : null,
+        raNumAchievements: _hasRaColumns ? row['ra_num_achievements'] as int? : null,
         regions: regionNames?.split(',') ?? [],
         links: [], // Links not needed for search results
       ));

@@ -90,28 +90,29 @@ class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
                   padding: const EdgeInsets.all(16),
                   children: [
                     // RetroAchievements section
-                    Text(
-                      'RetroAchievements',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilterChip(
-                          label: const Text('Has Achievements'),
-                          selected: _retroAchievementsOnly,
-                          onSelected: (selected) {
-                            setState(() {
-                              _retroAchievementsOnly = selected;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
+                    if (ref.read(romDatabaseProvider).hasRaColumns) ...[
+                      Text(
+                        'RetroAchievements',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilterChip(
+                            label: const Text('Has Achievements'),
+                            selected: _retroAchievementsOnly,
+                            onSelected: (selected) {
+                              setState(() {
+                                _retroAchievementsOnly = selected;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Regions section
                     Text(
