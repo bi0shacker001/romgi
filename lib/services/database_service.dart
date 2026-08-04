@@ -6,7 +6,7 @@ import '../models/models.dart';
 class DatabaseService {
   static Database? _database;
   static const String _dbName = 'romgi.db';
-  static const int _dbVersion = 6;
+  static const int _dbVersion = 7;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -98,6 +98,12 @@ class DatabaseService {
         'ALTER TABLE downloads ADD COLUMN group_total INTEGER',
       );
     }
+
+    if (oldVersion < 7) {
+      await db.execute(
+        'ALTER TABLE downloads ADD COLUMN link_debrid_resolved INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -122,6 +128,7 @@ class DatabaseService {
         link_torrent_infohash TEXT,
         link_torrent_file_index INTEGER,
         link_torrent_file_path TEXT,
+        link_debrid_resolved INTEGER NOT NULL DEFAULT 0,
         status INTEGER NOT NULL DEFAULT 0,
         progress REAL NOT NULL DEFAULT 0.0,
         downloaded_bytes INTEGER NOT NULL DEFAULT 0,

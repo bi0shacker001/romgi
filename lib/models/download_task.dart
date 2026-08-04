@@ -38,6 +38,7 @@ class DownloadTask {
   final int peers;
   final int seeds;
   final bool fetchingMetadata;
+  final bool resolvingDebrid;
 
   const DownloadTask({
     required this.id,
@@ -63,6 +64,7 @@ class DownloadTask {
     this.peers = -1,
     this.seeds = -1,
     this.fetchingMetadata = false,
+    this.resolvingDebrid = false,
   });
 
   DownloadTask copyWith({
@@ -83,6 +85,7 @@ class DownloadTask {
     int? peers,
     int? seeds,
     bool? fetchingMetadata,
+    bool? resolvingDebrid,
   }) {
     return DownloadTask(
       id: id,
@@ -108,6 +111,7 @@ class DownloadTask {
       peers: peers ?? this.peers,
       seeds: seeds ?? this.seeds,
       fetchingMetadata: fetchingMetadata ?? this.fetchingMetadata,
+      resolvingDebrid: resolvingDebrid ?? this.resolvingDebrid,
     );
   }
 
@@ -132,6 +136,7 @@ class DownloadTask {
       'link_torrent_infohash': link.torrentInfohash,
       'link_torrent_file_index': link.torrentFileIndex,
       'link_torrent_file_path': link.torrentFilePath,
+      'link_debrid_resolved': link.debridResolved ? 1 : 0,
       'status': status.index,
       'progress': progress,
       'downloaded_bytes': downloadedBytes,
@@ -170,6 +175,7 @@ class DownloadTask {
         torrentInfohash: map['link_torrent_infohash'] as String?,
         torrentFileIndex: map['link_torrent_file_index'] as int?,
         torrentFilePath: map['link_torrent_file_path'] as String?,
+        debridResolved: (map['link_debrid_resolved'] as int? ?? 0) != 0,
       ),
       status: DownloadStatus.values[map['status'] as int],
       progress: (map['progress'] as num?)?.toDouble() ?? 0.0,
@@ -194,6 +200,9 @@ class DownloadTask {
       case DownloadStatus.pending:
         return 'Waiting...';
       case DownloadStatus.downloading:
+        if (resolvingDebrid) {
+          return progress > 0 ? 'Caching on debrid...' : 'Resolving via debrid...';
+        }
         if (link.isTorrent && fetchingMetadata) return 'Finding peers...';
         if (link.isTorrent) return 'Downloading (Torrent)';
         return 'Downloading...';
