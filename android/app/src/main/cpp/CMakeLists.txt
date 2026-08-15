@@ -15,12 +15,10 @@ project(romgi_pkg2zip)
 # native code to live.
 set(PKG2ZIP_DIR ${CMAKE_SOURCE_DIR}/../../../../../external/pkg2zip)
 
-add_executable(pkg2zip_bin
+set(PKG2ZIP_SOURCES
     ${PKG2ZIP_DIR}/pkg2zip.c
     ${PKG2ZIP_DIR}/pkg2zip_aes.c
-    ${PKG2ZIP_DIR}/pkg2zip_aes_x86.c
     ${PKG2ZIP_DIR}/pkg2zip_crc32.c
-    ${PKG2ZIP_DIR}/pkg2zip_crc32_x86.c
     ${PKG2ZIP_DIR}/pkg2zip_out.c
     ${PKG2ZIP_DIR}/pkg2zip_psp.c
     ${PKG2ZIP_DIR}/pkg2zip_sys.c
@@ -29,6 +27,25 @@ add_executable(pkg2zip_bin
     ${PKG2ZIP_DIR}/miniz_tdef.c
     ${PKG2ZIP_DIR}/puff.c
 )
+
+# pkg2zip_aes.c/pkg2zip_crc32.c already runtime-dispatch to these x86-only
+# SSE/AES-NI/PCLMUL accelerated paths (falling back to portable C otherwise,
+# see PLATFORM_SUPPORTS_AESNI), but the _x86.c translation units themselves
+# use x86 intrinsic headers unconditionally with no arch guard — they must
+# be excluded from the arm64-v8a build entirely rather than merely unused,
+# or clang fails to compile the intrinsic headers for that target.
+if(ANDROID_ABI MATCHES "^x86")
+    list(APPEND PKG2ZIP_SOURCES
+        ${PKG2ZIP_DIR}/pkg2zip_aes_x86.c
+        ${PKG2ZIP_DIR}/pkg2zip_crc32_x86.c
+    )
+    set_source_files_properties(${PKG2ZIP_DIR}/pkg2zip_aes_x86.c
+        PROPERTIES COMPILE_OPTIONS "-maes;-mssse3")
+    set_source_files_properties(${PKG2ZIP_DIR}/pkg2zip_crc32_x86.c
+        PROPERTIES COMPILE_OPTIONS "-mpclmul;-msse4")
+endif()
+
+add_executable(pkg2zip_bin ${PKG2ZIP_SOURCES})
 
 target_include_directories(pkg2zip_bin PRIVATE ${PKG2ZIP_DIR})
 
