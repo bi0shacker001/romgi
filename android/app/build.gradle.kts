@@ -28,6 +28,21 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+
+        // Builds pkg2zip (vendored as the external/pkg2zip submodule) into
+        // src/main/jniLibs/<abi>/libpkg2zip.so — see src/main/cpp/CMakeLists.txt.
+        externalNativeBuild {
+            cmake {
+                targets += "pkg2zip_bin"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {

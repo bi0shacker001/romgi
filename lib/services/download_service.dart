@@ -22,8 +22,23 @@ import 'storage_service.dart';
 import 'torrent_info.dart';
 import 'torrent_magnet.dart';
 import 'torrent_service.dart';
+import 'vita_decrypt_service.dart';
 
 enum AddDownloadResult { added, duplicate }
+
+/// How a PS Vita `.pkg` download is finalized once it completes.
+enum VitaDownloadMode {
+  /// Today's behavior: keep the raw `.pkg` as-is.
+  pkgOnly,
+
+  /// Fetch the sibling zRIF license link and keep both files together in a
+  /// per-game subfolder, ready for Vita3K to import without decryption.
+  pkgWithLicense,
+
+  /// Fetch the zRIF license link and decrypt the pkg to a NoNpDrm-format
+  /// zip via the bundled pkg2zip binary.
+  decryptToZip,
+}
 
 /// Outcome of enqueuing a whole disc group at once.
 class DiscGroupDownloadResult {
@@ -54,6 +69,7 @@ class DownloadService {
   final DebridService? _debrid;
   late final PlaylistWriter _playlistWriter;
   bool Function(String platform) shouldExtractForPlatform = (_) => true;
+  VitaDownloadMode Function() getVitaDownloadMode = () => VitaDownloadMode.pkgOnly;
   final Dio _dio;
   Dio? _nativeDio;
   final _uuid = const Uuid();
@@ -947,10 +963,11 @@ class DownloadService {
         );
       }
     } else {
+      final finalPath = await _maybeHandleVitaLicense(updatedTask, downloadPath);
       updatedTask = updatedTask.copyWith(
         status: DownloadStatus.completed,
         progress: 1.0,
-        filePath: downloadPath,
+        filePath: finalPath,
         completedAt: DateTime.now(),
       );
     }
@@ -1035,6 +1052,8 @@ class DownloadService {
           await _failTask(task, 'Extraction failed — the archive may be corrupt');
           return;
         }
+      } else if (existingPath == destPath) {
+        finalPath = await _maybeHandleVitaLicense(task, destPath);
       }
       final completed = task.copyWith(
         status: DownloadStatus.completed,
@@ -1226,6 +1245,8 @@ class DownloadService {
 
         return;
       }
+    } else {
+      finalPath = await _maybeHandleVitaLicense(task, dest);
     }
 
     final completed = task.copyWith(
@@ -1517,6 +1538,61 @@ class DownloadService {
       await _db.updateDownload(updated);
       _downloadController.add(updated);
       _processQueue();
+    }
+  }
+
+  bool _isVitaPkg(DownloadTask task) =>
+      task.platform == 'psv' &&
+      task.link.filename.toLowerCase().endsWith('.pkg');
+
+  /// Applies the configured [VitaDownloadMode] to a just-downloaded Vita
+  /// pkg, if applicable. Returns the path the task should record as its
+  /// final [DownloadTask.filePath] — unchanged from [pkgPath] if the mode
+  /// is [VitaDownloadMode.pkgOnly], the task isn't a Vita pkg, or the
+  /// license fetch/decrypt fails (the raw pkg is always left usable).
+  Future<String> _maybeHandleVitaLicense(DownloadTask task, String pkgPath) async {
+    final mode = getVitaDownloadMode();
+    if (mode == VitaDownloadMode.pkgOnly || !_isVitaPkg(task)) return pkgPath;
+
+    try {
+      final entry = await _romDb.getEntry(task.slug);
+      final licenseLink = entry?.links
+          .where((l) => l.type == 'ZRIF string')
+          .firstOrNull;
+      if (licenseLink == null) return pkgPath;
+
+      final response = await _dio.get<String>(
+        licenseLink.url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final zrif = response.data?.trim();
+      if (zrif == null || zrif.isEmpty) return pkgPath;
+
+      switch (mode) {
+        case VitaDownloadMode.pkgWithLicense:
+          final platformDir = await _storage.getPlatformDirectory(task.platform);
+          final baseName = p.basenameWithoutExtension(pkgPath);
+          final gameDir = Directory(p.join(platformDir.path, baseName));
+          if (!await gameDir.exists()) await gameDir.create(recursive: true);
+          final movedPkgPath = p.join(gameDir.path, p.basename(pkgPath));
+          await File(pkgPath).rename(movedPkgPath);
+          await File(p.join(gameDir.path, '$baseName.zrif')).writeAsString(zrif);
+          return gameDir.path;
+        case VitaDownloadMode.decryptToZip:
+          final platformDir = await _storage.getPlatformDirectory(task.platform);
+          final zipPath = await VitaDecryptService.decryptPkgToZip(
+            pkgPath: pkgPath,
+            zrif: zrif,
+            outputDir: platformDir.path,
+          );
+          await File(pkgPath).delete();
+          return zipPath;
+        case VitaDownloadMode.pkgOnly:
+          return pkgPath;
+      }
+    } catch (_) {
+      // Best-effort — the raw pkg is still a usable download on its own.
+      return pkgPath;
     }
   }
 

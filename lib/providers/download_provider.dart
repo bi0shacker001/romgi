@@ -295,6 +295,7 @@ final downloadProvider = StateNotifierProvider<DownloadNotifier, DownloadState>(
         debridEnabled:
             settings.debridEnabled && debridService.isConfiguredSync(),
       );
+  service.getVitaDownloadMode = () => settings.vitaDownloadMode;
   final notifier = DownloadNotifier(
     service,
     maxConcurrentDownloads: settings.maxConcurrentDownloads,

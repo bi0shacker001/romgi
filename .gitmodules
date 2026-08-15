@@ -1,0 +1,3 @@
+[submodule "external/pkg2zip"]
+	path = external/pkg2zip
+	url = https://github.com/mmozeiko/pkg2zip.git

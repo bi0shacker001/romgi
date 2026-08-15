@@ -101,6 +101,19 @@ class SettingsScreen extends ConsumerWidget {
 
                 const Divider(height: 32),
 
+                _SectionHeader(title: 'PS Vita'),
+
+                ListTile(
+                  leading: const Icon(Icons.videogame_asset),
+                  title: const Text('Vita Downloads'),
+                  subtitle: Text(_getVitaModeName(settings.vitaDownloadMode)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      _showVitaModePicker(context, ref, settings.vitaDownloadMode),
+                ),
+
+                const Divider(height: 32),
+
                 _SectionHeader(title: 'Debrid Service'),
                 const _DebridSection(),
 
@@ -390,6 +403,65 @@ class SettingsScreen extends ConsumerWidget {
       case AppThemeMode.dark:
         return 'Dark';
     }
+  }
+
+  String _getVitaModeName(VitaDownloadMode mode) {
+    switch (mode) {
+      case VitaDownloadMode.pkgOnly:
+        return 'PKG only';
+      case VitaDownloadMode.pkgWithLicense:
+        return 'PKG + license (folder)';
+      case VitaDownloadMode.decryptToZip:
+        return 'Decrypt to zip';
+    }
+  }
+
+  String _getVitaModeDescription(VitaDownloadMode mode) {
+    switch (mode) {
+      case VitaDownloadMode.pkgOnly:
+        return 'Download the pkg as-is';
+      case VitaDownloadMode.pkgWithLicense:
+        return 'Also fetch the zRIF license and keep it with the pkg in a '
+            'per-game folder, ready for Vita3K to import';
+      case VitaDownloadMode.decryptToZip:
+        return 'Fetch the license and decrypt the pkg to an install-ready '
+            'zip using the bundled pkg2zip';
+    }
+  }
+
+  void _showVitaModePicker(
+    BuildContext context,
+    WidgetRef ref,
+    VitaDownloadMode currentMode,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Vita Downloads'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: VitaDownloadMode.values.map((mode) {
+            final isSelected = mode == currentMode;
+            return ListTile(
+              leading: Icon(
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: isSelected
+                    ? Theme.of(dialogContext).colorScheme.primary
+                    : null,
+              ),
+              title: Text(_getVitaModeName(mode)),
+              subtitle: Text(_getVitaModeDescription(mode)),
+              onTap: () {
+                ref.read(settingsProvider.notifier).setVitaDownloadMode(mode);
+                Navigator.pop(dialogContext);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
   }
 
   void _showThemePicker(
