@@ -127,6 +127,30 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _pickBoot9File(context, ref),
                 ),
 
+                ListTile(
+                  leading: const Icon(Icons.vpn_key),
+                  title: const Text('seeddb.bin'),
+                  subtitle: Text(
+                    settings.threeDsSeeddbPath ??
+                        'Not set — only needed for the subset of 3DS games '
+                            'that use seed crypto (games released after a '
+                            'later system update)',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: settings.threeDsSeeddbPath != null
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            ref
+                                .read(settingsProvider.notifier)
+                                .setThreeDsSeeddbPath(null);
+                          },
+                        )
+                      : null,
+                  onTap: () => _pickSeeddbFile(context, ref),
+                ),
+
                 const Divider(height: 32),
 
                 _SectionHeader(title: 'Debrid Service'),
@@ -481,6 +505,15 @@ class SettingsScreen extends ConsumerWidget {
 
     if (path != null) {
       ref.read(settingsProvider.notifier).setThreeDsBoot9Path(path);
+    }
+  }
+
+  Future<void> _pickSeeddbFile(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.platform.pickFiles();
+    final path = result?.files.single.path;
+
+    if (path != null) {
+      ref.read(settingsProvider.notifier).setThreeDsSeeddbPath(path);
     }
   }
 }

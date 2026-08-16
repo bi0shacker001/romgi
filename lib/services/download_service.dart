@@ -57,6 +57,7 @@ class DownloadService {
   late final PlaylistWriter _playlistWriter;
   bool Function(String platform) shouldExtractForPlatform = (_) => true;
   String? Function() getThreeDsBoot9Path = () => null;
+  String? Function() getThreeDsSeeddbPath = () => null;
   final Dio _dio;
   Dio? _nativeDio;
   final _uuid = const Uuid();
@@ -1530,16 +1531,18 @@ class DownloadService {
 
   /// After a 3DS archive extracts, decrypt the resulting `.3ds` in place if
   /// a boot9 keys file is configured, so emulators like Azahar (which
-  /// refuse to decrypt at load time) can use it directly. Best-effort and
-  /// never fatal to the download: an unset/wrong boot9, a seed-crypto
-  /// title, or any other decrypt failure just leaves the extracted file
-  /// encrypted, which is still a usable (if Azahar-incompatible) file.
+  /// refuse to decrypt at load time) can use it directly. A seeddb.bin
+  /// (also user-supplied) is passed along if configured, needed only for
+  /// the subset of titles using seed crypto. Best-effort and never fatal to
+  /// the download: an unset/wrong boot9, a missing/mismatched seed, or any
+  /// other decrypt failure just leaves the extracted file encrypted, which
+  /// is still a usable (if Azahar-incompatible) file.
   Future<void> _maybeDecrypt3ds(String path, String platform) async {
     if (platform != '3ds' && platform != 'n3ds') return;
     final boot9Path = getThreeDsBoot9Path();
     if (boot9Path == null) return;
     try {
-      await _ncchDecrypt.decryptCci(path, boot9Path);
+      await _ncchDecrypt.decryptCci(path, boot9Path, getThreeDsSeeddbPath());
     } catch (_) {
       // Best-effort — see doc comment above.
     }

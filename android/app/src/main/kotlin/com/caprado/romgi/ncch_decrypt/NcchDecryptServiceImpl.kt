@@ -80,9 +80,36 @@ private val ZERO_KEY = ByteArray(16)
 private val FIXED_SYSTEM_KEY = hexToBytes("527CE630A9CA305F3696F3CDE954194B")
 
 class Boot9InvalidError(message: String) : Exception(message)
-class SeedCryptoUnsupportedError(message: String) : Exception(message)
+class SeedRequiredError(message: String) : Exception(message)
+class SeedMismatchError(message: String) : Exception(message)
 
 private data class ExeFsEntry(val name: String, val offset: Int, val size: Int)
+
+/**
+ * seeddb.bin format (see pyctr/crypto/seeddb.py): a 4-byte little-endian
+ * entry count, padded to a 0x10-byte header, followed by that many 0x20-byte
+ * entries — each an 8-byte little-endian Program ID, a 16-byte seed, and
+ * 8 bytes of padding. This is a community-maintained database of per-title
+ * seeds (originally served by Nintendo's CDN per-console, aggregated across
+ * many consoles into one shared file) — not a secret extracted from any one
+ * console, but still the user's own file to supply, never bundled here.
+ */
+private fun loadSeeddb(file: File): Map<Long, ByteArray> {
+    val data = file.readBytes()
+    if (data.size < 0x10) throw SeedMismatchError("seeddb file is too small to be valid")
+    var count = 0L
+    for (i in 3 downTo 0) count = (count shl 8) or (data[i].toLong() and 0xFF)
+    val seeds = mutableMapOf<Long, ByteArray>()
+    var offset = 0x10
+    for (i in 0 until count) {
+        if (offset + 0x20 > data.size) break
+        var programId = 0L
+        for (j in 7 downTo 0) programId = (programId shl 8) or (data[offset + j].toLong() and 0xFF)
+        seeds[programId] = data.copyOfRange(offset + 8, offset + 8 + 16)
+        offset += 0x20
+    }
+    return seeds
+}
 
 class NcchDecryptServiceImpl : NcchDecryptHostApi {
 
@@ -91,10 +118,15 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
     }
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    override fun decryptCci(cciPath: String, boot9Path: String, callback: (Result<Unit>) -> Unit) {
+    override fun decryptCci(
+        cciPath: String,
+        boot9Path: String,
+        seeddbPath: String?,
+        callback: (Result<Unit>) -> Unit,
+    ) {
         executor.execute {
             try {
-                doDecrypt(File(cciPath), File(boot9Path))
+                doDecrypt(File(cciPath), File(boot9Path), seeddbPath?.let { File(it) })
                 mainHandler.post { callback(Result.success(Unit)) }
             } catch (e: Exception) {
                 Log.e(TAG, "decryption failed: $cciPath", e)
@@ -105,8 +137,9 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
 
     // --- Top-level CCI walk --------------------------------------------------
 
-    private fun doDecrypt(cciFile: File, boot9File: File) {
+    private fun doDecrypt(cciFile: File, boot9File: File, seeddbFile: File?) {
         val keyX2C = readKeyX2CFromBoot9(boot9File)
+        val seeds: Map<Long, ByteArray>? = seeddbFile?.let { loadSeeddb(it) }
 
         RandomAccessFile(cciFile, "rw").use { raf ->
             // NCSD header starts at 0x100 (the first 0x100 bytes are an RSA
@@ -125,7 +158,7 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
                 val partOffsetUnits = readLeUInt32(ncsdHeader, entryOffset)
                 if (partOffsetUnits == 0L) continue // unpopulated partition slot
                 val partOffset = partOffsetUnits * 0x200
-                decryptNcchPartition(raf, partOffset, keyX2C)
+                decryptNcchPartition(raf, partOffset, keyX2C, seeds)
             }
         }
     }
@@ -149,7 +182,12 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
 
     // --- Per-NCCH-partition decryption ---------------------------------------
 
-    private fun decryptNcchPartition(raf: RandomAccessFile, partOffset: Long, keyX2C: ByteArray) {
+    private fun decryptNcchPartition(
+        raf: RandomAccessFile,
+        partOffset: Long,
+        keyX2C: ByteArray,
+        seeds: Map<Long, ByteArray>?,
+    ) {
         val header = ByteArray(0x200)
         raf.seek(partOffset)
         raf.readFully(header)
@@ -165,16 +203,28 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
         val usesSeed = (flags[7].toInt() and 0x20) != 0
 
         if (noCrypto) return // already plaintext, nothing to do
-        if (usesSeed) {
-            throw SeedCryptoUnsupportedError(
-                "this title uses seed crypto (needs a per-title seed, not just boot9) — not supported yet")
-        }
 
-        val keyY = header.copyOfRange(0x0, 0x10)
+        val originalKeyY = header.copyOfRange(0x0, 0x10)
+        val seedVerify = header.copyOfRange(0x114, 0x118)
         val partitionIdBytesBE = header.copyOfRange(0x108, 0x110).reversedArray()
         val programIdBytes = header.copyOfRange(0x118, 0x120)
         var programIdLE = 0L
         for (i in 7 downTo 0) programIdLE = (programIdLE shl 8) or (programIdBytes[i].toLong() and 0xFF)
+
+        // Only the "extra" keyslot (used for RomFS and part of ExeFS) is
+        // seeded — the main keyslot (ExHeader, and all of ExeFS when there's
+        // no extra keyslot) always uses the header's own KeyY, seed or not.
+        var extraKeyY = originalKeyY
+        if (usesSeed) {
+            val seed = seeds?.get(programIdLE)
+                ?: throw SeedRequiredError(
+                    "this title uses seed crypto and needs a matching seeddb.bin entry, which isn't configured/found")
+            val verifyHash = MessageDigest.getInstance("SHA-256").digest(seed + programIdBytes)
+            if (!verifyHash.copyOfRange(0, 4).contentEquals(seedVerify)) {
+                throw SeedMismatchError("the seed for this title does not match its NCCH header (wrong seeddb entry?)")
+            }
+            extraKeyY = MessageDigest.getInstance("SHA-256").digest(originalKeyY + seed).copyOfRange(0, 16)
+        }
 
         val mainKeyNormal: ByteArray
         val extraKeyNormal: ByteArray
@@ -185,16 +235,18 @@ class NcchDecryptServiceImpl : NcchDecryptHostApi {
             extraKeyNormal = mainKeyNormal
             hasExtraKeyslot = false
         } else {
-            mainKeyNormal = keygenManual(keyX2C, keyY)
-            if (cryptoMethod == 0x00) {
-                extraKeyNormal = mainKeyNormal
-                hasExtraKeyslot = false
+            mainKeyNormal = keygenManual(keyX2C, originalKeyY)
+            val extraKeyX = if (cryptoMethod == 0x00) {
+                keyX2C
             } else {
-                val extraKeyX = EXTRA_KEY_X[cryptoMethod]
-                    ?: throw Exception("unknown NCCH crypto_method 0x${cryptoMethod.toString(16)}")
-                extraKeyNormal = keygenManual(extraKeyX.to16ByteArray(), keyY)
-                hasExtraKeyslot = true
+                (EXTRA_KEY_X[cryptoMethod]
+                    ?: throw Exception("unknown NCCH crypto_method 0x${cryptoMethod.toString(16)}")).to16ByteArray()
             }
+            extraKeyNormal = keygenManual(extraKeyX, extraKeyY)
+            // A seeded extra KeyY always differs from the main (non-seeded)
+            // KeyY, so seeding alone forces the ExeFS split path even when
+            // crypto_method is 0 (same keyslot, different derived key).
+            hasExtraKeyslot = cryptoMethod != 0x00 || usesSeed
         }
 
         val extheaderSize = readLeUInt32(header, 0x180)

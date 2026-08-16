@@ -53,10 +53,12 @@ class NcchDecryptHostApi {
 
   /// Decrypts every populated NCCH partition of the CCI (.3ds) file at
   /// [cciPath] in place, using key material derived from the user-supplied
-  /// [boot9Path] (a dump of their own console's ARM9 bootROM). Throws if
-  /// boot9 is invalid/mismatched, or if any partition uses seed crypto
-  /// (not yet supported — see NcchDecryptServiceImpl for details).
-  Future<void> decryptCci(String cciPath, String boot9Path) async {
+  /// [boot9Path] (a dump of their own console's ARM9 bootROM). Partitions
+  /// using seed crypto additionally need [seeddbPath] (a user-supplied
+  /// seeddb.bin) to look up their per-title seed; if a seed-using partition
+  /// is hit and [seeddbPath] is null or lacks that title's seed, this
+  /// throws rather than guessing. Also throws if boot9 is invalid/mismatched.
+  Future<void> decryptCci(String cciPath, String boot9Path, String? seeddbPath) async {
     final String pigeonVar_channelName = 'dev.flutter.pigeon.romgi.NcchDecryptHostApi.decryptCci$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
@@ -64,7 +66,7 @@ class NcchDecryptHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final List<Object?>? pigeonVar_replyList =
-        await pigeonVar_channel.send(<Object?>[cciPath, boot9Path]) as List<Object?>?;
+        await pigeonVar_channel.send(<Object?>[cciPath, boot9Path, seeddbPath]) as List<Object?>?;
     if (pigeonVar_replyList == null) {
       throw _createConnectionError(pigeonVar_channelName);
     } else if (pigeonVar_replyList.length > 1) {

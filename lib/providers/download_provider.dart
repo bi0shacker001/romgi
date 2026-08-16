@@ -296,6 +296,7 @@ final downloadProvider = StateNotifierProvider<DownloadNotifier, DownloadState>(
             settings.debridEnabled && debridService.isConfiguredSync(),
       );
   service.getThreeDsBoot9Path = () => settings.threeDsBoot9Path;
+  service.getThreeDsSeeddbPath = () => settings.threeDsSeeddbPath;
   final notifier = DownloadNotifier(
     service,
     maxConcurrentDownloads: settings.maxConcurrentDownloads,

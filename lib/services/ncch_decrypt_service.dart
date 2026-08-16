@@ -11,7 +11,9 @@ class NcchDecryptService {
 
   final NcchDecryptHostApi _api;
 
-  Future<void> decryptCci(String cciPath, String boot9Path) {
-    return _api.decryptCci(cciPath, boot9Path);
+  /// [seeddbPath] is only needed for the subset of titles using seed
+  /// crypto; may be null if not configured.
+  Future<void> decryptCci(String cciPath, String boot9Path, String? seeddbPath) {
+    return _api.decryptCci(cciPath, boot9Path, seeddbPath);
   }
 }
