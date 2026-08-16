@@ -295,6 +295,7 @@ final downloadProvider = StateNotifierProvider<DownloadNotifier, DownloadState>(
         debridEnabled:
             settings.debridEnabled && debridService.isConfiguredSync(),
       );
+  service.getPs3DownloadRap = () => settings.ps3DownloadRap;
   final notifier = DownloadNotifier(
     service,
     maxConcurrentDownloads: settings.maxConcurrentDownloads,
