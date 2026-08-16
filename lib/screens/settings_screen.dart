@@ -101,6 +101,34 @@ class SettingsScreen extends ConsumerWidget {
 
                 const Divider(height: 32),
 
+                _SectionHeader(title: '3DS Decryption'),
+
+                ListTile(
+                  leading: const Icon(Icons.key),
+                  title: const Text('boot9.bin'),
+                  subtitle: Text(
+                    settings.threeDsBoot9Path ??
+                        'Not set — required to decrypt 3DS games for '
+                            'emulators like Azahar that refuse to decrypt '
+                            'themselves',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: settings.threeDsBoot9Path != null
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            ref
+                                .read(settingsProvider.notifier)
+                                .setThreeDsBoot9Path(null);
+                          },
+                        )
+                      : null,
+                  onTap: () => _pickBoot9File(context, ref),
+                ),
+
+                const Divider(height: 32),
+
                 _SectionHeader(title: 'Debrid Service'),
                 const _DebridSection(),
 
@@ -444,6 +472,15 @@ class SettingsScreen extends ConsumerWidget {
         ref.read(settingsProvider.notifier).setDefaultDownloadPath(result);
         storage.setCustomDownloadPath(result);
       }
+    }
+  }
+
+  Future<void> _pickBoot9File(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.platform.pickFiles();
+    final path = result?.files.single.path;
+
+    if (path != null) {
+      ref.read(settingsProvider.notifier).setThreeDsBoot9Path(path);
     }
   }
 }

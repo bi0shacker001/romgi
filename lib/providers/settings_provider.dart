@@ -17,6 +17,7 @@ class SettingsState {
   final bool debridEnabled;
   final String debridProviderId;
   final bool metadataEnabled;
+  final String? threeDsBoot9Path;
   final bool isLoading;
 
   const SettingsState({
@@ -32,6 +33,7 @@ class SettingsState {
     this.debridEnabled = false,
     this.debridProviderId = 'torbox',
     this.metadataEnabled = true,
+    this.threeDsBoot9Path,
     this.isLoading = false,
   });
 
@@ -54,6 +56,8 @@ class SettingsState {
     bool? debridEnabled,
     String? debridProviderId,
     bool? metadataEnabled,
+    String? threeDsBoot9Path,
+    bool clearThreeDsBoot9Path = false,
     bool? isLoading,
   }) {
     return SettingsState(
@@ -73,6 +77,9 @@ class SettingsState {
       debridEnabled: debridEnabled ?? this.debridEnabled,
       debridProviderId: debridProviderId ?? this.debridProviderId,
       metadataEnabled: metadataEnabled ?? this.metadataEnabled,
+      threeDsBoot9Path: clearThreeDsBoot9Path
+          ? null
+          : (threeDsBoot9Path ?? this.threeDsBoot9Path),
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -107,6 +114,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyDebridEnabled = 'debrid_enabled';
   static const String _keyDebridProviderId = 'debrid_provider_id';
   static const String _keyMetadataEnabled = 'metadata_enabled';
+  static const String _keyThreeDsBoot9Path = 'three_ds_boot9_path';
 
   SettingsNotifier() : super(const SettingsState()) {
     _loadSettings();
@@ -138,6 +146,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final debridProviderId =
         prefs.getString(_keyDebridProviderId) ?? 'torbox';
     final metadataEnabled = prefs.getBool(_keyMetadataEnabled) ?? true;
+    final threeDsBoot9Path = prefs.getString(_keyThreeDsBoot9Path);
 
     // Load platform-specific paths
     final platformPaths = <String, String>{};
@@ -166,6 +175,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       debridEnabled: debridEnabled,
       debridProviderId: debridProviderId,
       metadataEnabled: metadataEnabled,
+      threeDsBoot9Path: threeDsBoot9Path,
       isLoading: false,
     );
   }
@@ -261,6 +271,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(metadataEnabled: value);
   }
 
+  Future<void> setThreeDsBoot9Path(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (path == null) {
+      await prefs.remove(_keyThreeDsBoot9Path);
+      state = state.copyWith(clearThreeDsBoot9Path: true);
+    } else {
+      await prefs.setString(_keyThreeDsBoot9Path, path);
+      state = state.copyWith(threeDsBoot9Path: path);
+    }
+  }
+
   Future<void> setMaxConcurrentDownloads(int value) async {
     final clamped = value.clamp(0, 10);
     final prefs = await SharedPreferences.getInstance();
@@ -280,6 +302,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await prefs.remove(_keyDebridEnabled);
     await prefs.remove(_keyDebridProviderId);
     await prefs.remove(_keyMetadataEnabled);
+    await prefs.remove(_keyThreeDsBoot9Path);
 
     for (final key in prefs.getKeys().toList()) {
       if (key.startsWith(_keyPlatformPaths) ||
