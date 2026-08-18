@@ -136,10 +136,12 @@ jobs:
         with:
           tag_name: build-${{ steps.meta.outputs.safe_branch }}
           name: romgi (${{ steps.meta.outputs.safe_branch }}) — latest build
-          prerelease: true
+          prerelease: false
           body: |
             Automated build from ${{ github.sha }}. Replaced on every push to
-            `${{ steps.meta.outputs.safe_branch }}` — not a stable release.
+            `${{ steps.meta.outputs.safe_branch }}` — not a stable release,
+            but marked non-prerelease so update-tracking tools (e.g.
+            Obtainium) pick it up without manual approval.
           files: |
             romgi-${{ steps.meta.outputs.safe_branch }}-debug.apk
             romgi-${{ steps.meta.outputs.safe_branch }}-release.apk
