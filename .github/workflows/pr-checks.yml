@@ -67,6 +67,8 @@ jobs:
     name: Android build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -116,3 +118,28 @@ jobs:
           name: romgi-${{ steps.meta.outputs.safe_branch }}-release
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
+
+      # One rolling pre-release per branch (tag build-<branch>), so there's
+      # a stable, easy-to-find download link instead of digging through
+      # Actions run history — each push replaces this branch's release
+      # in place rather than accumulating new ones. Skipped on pull_request
+      # runs (e.g. from forks) since those shouldn't publish anything.
+      - name: Rename APKs for release
+        if: github.event_name == 'push'
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk "romgi-${{ steps.meta.outputs.safe_branch }}-debug.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "romgi-${{ steps.meta.outputs.safe_branch }}-release.apk"
+
+      - name: Publish branch release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ steps.meta.outputs.safe_branch }}
+          name: romgi (${{ steps.meta.outputs.safe_branch }}) — latest build
+          prerelease: true
+          body: |
+            Automated build from ${{ github.sha }}. Replaced on every push to
+            `${{ steps.meta.outputs.safe_branch }}` — not a stable release.
+          files: |
+            romgi-${{ steps.meta.outputs.safe_branch }}-debug.apk
+            romgi-${{ steps.meta.outputs.safe_branch }}-release.apk
