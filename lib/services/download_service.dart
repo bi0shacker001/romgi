@@ -489,7 +489,7 @@ class DownloadService {
     try {
       final downloadPath = await _storage.getDownloadPath(
         task.platform,
-        task.link.filename,
+        _saveFileName(task),
       );
 
       int downloadedBytes = 0;
@@ -728,7 +728,7 @@ class DownloadService {
           try {
             final downloadPath = await _storage.getDownloadPath(
               task.platform,
-              task.link.filename,
+              _saveFileName(task),
             );
             final file = File(downloadPath);
             if (await file.exists()) {
@@ -814,7 +814,7 @@ class DownloadService {
       try {
         final downloadPath = await _storage.getDownloadPath(
           task.platform,
-          task.link.filename,
+          _saveFileName(task),
         );
         final file = File(downloadPath);
         if (await file.exists()) {
@@ -993,7 +993,7 @@ class DownloadService {
     // (e.g. previous session completed but the task was re-queued after
     // a hot restart), skip the torrent and go straight to completion.
     final destPath = await _storage.getDownloadPath(
-        task.platform, task.link.filename);
+        task.platform, _saveFileName(task));
     final destFile = File(destPath);
     var existingPath = destPath;
     var alreadyComplete = false;
@@ -1009,7 +1009,7 @@ class DownloadService {
     // extraction in a previous session).
     if (!alreadyComplete && _shouldExtract(task.link.filename, task.platform)) {
       final platformDir = await _storage.getPlatformDirectory(task.platform);
-      final baseName = task.link.filename
+      final baseName = _saveFileName(task)
           .replaceAll(RegExp(r'\.(zip|7z)$', caseSensitive: false), '');
       try {
         await for (final entity in platformDir.list()) {
@@ -1184,7 +1184,7 @@ class DownloadService {
       return;
     }
 
-    final dest = await _storage.getDownloadPath(task.platform, task.link.filename);
+    final dest = await _storage.getDownloadPath(task.platform, _saveFileName(task));
     try {
       final destFile = File(dest);
       if (await destFile.exists()) await destFile.delete();
@@ -1490,7 +1490,7 @@ class DownloadService {
       try {
         final downloadPath = await _storage.getDownloadPath(
           task.platform,
-          task.link.filename,
+          _saveFileName(task),
         );
         final file = File(downloadPath);
         if (await file.exists()) {
@@ -1518,6 +1518,19 @@ class DownloadService {
       _downloadController.add(updated);
       _processQueue();
     }
+  }
+
+  /// The on-disk filename to save a task under: the game's title (from the
+  /// catalog, not the source's often-cryptic filename) plus the original
+  /// file's extension. Falls back to the source filename if the title
+  /// sanitizes down to nothing.
+  String _saveFileName(DownloadTask task) {
+    final ext = p.extension(task.link.filename);
+    final sanitizedTitle = task.title
+        .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return sanitizedTitle.isEmpty ? task.link.filename : '$sanitizedTitle$ext';
   }
 
   bool _shouldExtract(String filename, String platform) {
