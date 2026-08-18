@@ -5,12 +5,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Non-main branches get a distinct package id + app label so a branch
-// build can be installed side-by-side with a main-branch build on the
-// same device instead of overwriting it. Driven by the branch name CI
-// exposes via GITHUB_HEAD_REF (pull_request events) / GITHUB_REF_NAME
-// (push events); local/non-CI builds see neither and stay on the plain
-// main-branch identity.
+// This is bi0shacker001's personal fork of caprado/romgi, maintained on
+// feature branches that patch/extend the upstream app. Every build uses a
+// bi0shacker001-scoped package id and "romgi-bio" label (distinct from
+// upstream's com.caprado.romgi / "romgi") so it installs alongside the
+// original app instead of overwriting it; non-main branches additionally
+// get a branch-specific suffix so branch builds can coexist with each
+// other and with main too. Branch name comes from CI (GITHUB_HEAD_REF for
+// pull_request events, GITHUB_REF_NAME for push events); local/non-CI
+// builds see neither and resolve to the plain main identity.
 val ciBranch = (System.getenv("GITHUB_HEAD_REF")?.takeIf { it.isNotEmpty() }
     ?: System.getenv("GITHUB_REF_NAME"))
     ?.takeIf { it != "main" }
@@ -37,9 +40,9 @@ android {
 
     defaultConfig {
         applicationId = if (branchSlug != null) {
-            "com.caprado.romgi.branch.$branchSlug"
+            "com.bi0shacker001.romgi.branch.$branchSlug"
         } else {
-            "com.caprado.romgi"
+            "com.bi0shacker001.romgi"
         }
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
@@ -47,7 +50,8 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
 
-        manifestPlaceholders["appLabel"] = if (ciBranch != null) "romgi ($ciBranch)" else "romgi"
+        manifestPlaceholders["appLabel"] =
+            if (ciBranch != null) "romgi-bio ($ciBranch)" else "romgi-bio"
 
         // Builds pkg2zip (vendored as the external/pkg2zip submodule) into
         // src/main/jniLibs/<abi>/libpkg2zip.so — see src/main/cpp/CMakeLists.txt.
