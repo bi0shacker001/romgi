@@ -64,9 +64,9 @@ jobs:
       - run: flutter test
 
   android-build:
-    name: Android debug build
+    name: Android build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -87,5 +87,30 @@ jobs:
 
       - run: flutter pub get
 
+      # Branch name for artifact naming and (via GITHUB_HEAD_REF/GITHUB_REF_NAME,
+      # read directly by android/app/build.gradle.kts) the app's package id/label.
+      - name: Compute branch slug
+        id: meta
+        run: |
+          branch="${{ github.head_ref || github.ref_name }}"
+          echo "safe_branch=${branch//\//-}" >> "$GITHUB_OUTPUT"
+
       - name: Build debug APK
         run: flutter build apk --debug
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: romgi-${{ steps.meta.outputs.safe_branch }}-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: romgi-${{ steps.meta.outputs.safe_branch }}-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
