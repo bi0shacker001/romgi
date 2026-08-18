@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Exception: app/debug.keystore is intentionally committed — a fixed
+# debug-signing key so CI release builds are byte-identical across runs
+# instead of AGP silently generating a new one on every ephemeral runner.
+!app/debug.keystore

@@ -54,6 +54,21 @@ android {
             if (ciBranch != null) "romgi-bio ($ciBranch)" else "romgi-bio"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Fixed keystore committed to the repo (not a secret — it's the
+            // conventional Android debug key). Without this, "debug" falls
+            // back to AGP's implicit ~/.android/debug.keystore, which
+            // GitHub Actions' ephemeral runners regenerate from scratch on
+            // every run — signing each release build with a different key
+            // and forcing an uninstall/reinstall on every update.
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
