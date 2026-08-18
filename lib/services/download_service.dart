@@ -1554,19 +1554,31 @@ class DownloadService {
     final mode = getVitaDownloadMode();
     if (mode == VitaDownloadMode.pkgOnly || !_isVitaPkg(task)) return pkgPath;
 
+    Future<String> bail(String reason) async {
+      await _notifications.showNonFatalIssue(
+        title: 'Vita license not applied — kept as .pkg',
+        message: '${task.title}: $reason',
+      );
+      return pkgPath;
+    }
+
     try {
       final entry = await _romDb.getEntry(task.slug);
       final licenseLink = entry?.links
           .where((l) => l.type == 'ZRIF string')
           .firstOrNull;
-      if (licenseLink == null) return pkgPath;
+      if (licenseLink == null) {
+        return await bail('no ZRIF license link found in the catalog for this title');
+      }
 
       final response = await _dio.get<String>(
         licenseLink.url,
         options: Options(responseType: ResponseType.plain),
       );
       final zrif = response.data?.trim();
-      if (zrif == null || zrif.isEmpty) return pkgPath;
+      if (zrif == null || zrif.isEmpty) {
+        return await bail('license link returned an empty response');
+      }
 
       switch (mode) {
         case VitaDownloadMode.pkgWithLicense:
@@ -1590,9 +1602,9 @@ class DownloadService {
         case VitaDownloadMode.pkgOnly:
           return pkgPath;
       }
-    } catch (_) {
+    } catch (e) {
       // Best-effort — the raw pkg is still a usable download on its own.
-      return pkgPath;
+      return bail(e.toString());
     }
   }
 

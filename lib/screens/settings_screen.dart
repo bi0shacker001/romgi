@@ -101,19 +101,6 @@ class SettingsScreen extends ConsumerWidget {
 
                 const Divider(height: 32),
 
-                _SectionHeader(title: 'PS Vita'),
-
-                ListTile(
-                  leading: const Icon(Icons.videogame_asset),
-                  title: const Text('Vita Downloads'),
-                  subtitle: Text(_getVitaModeName(settings.vitaDownloadMode)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      _showVitaModePicker(context, ref, settings.vitaDownloadMode),
-                ),
-
-                const Divider(height: 32),
-
                 _SectionHeader(title: 'Debrid Service'),
                 const _DebridSection(),
 
@@ -249,6 +236,41 @@ class SettingsScreen extends ConsumerWidget {
                                   ),
                                 ],
                               ),
+                              if (platform.id == 'psv') ...[
+                                const SizedBox(height: 4),
+                                InkWell(
+                                  onTap: () => _showVitaModePicker(
+                                    context,
+                                    ref,
+                                    settings.vitaDownloadMode,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.videogame_asset,
+                                        size: 16,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.outline,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Downloads: ${_getVitaModeName(settings.vitaDownloadMode)}',
+                                        style:
+                                            Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        size: 16,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.outline,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                           trailing: customPath != null
