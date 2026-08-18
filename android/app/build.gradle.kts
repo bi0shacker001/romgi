@@ -5,6 +5,23 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// This is bi0shacker001's personal fork of caprado/romgi, maintained on
+// feature branches that patch/extend the upstream app. Every build uses a
+// bi0shacker001-scoped package id and "romgi-bio" label (distinct from
+// upstream's com.caprado.romgi / "romgi") so it installs alongside the
+// original app instead of overwriting it; non-main branches additionally
+// get a branch-specific suffix so branch builds can coexist with each
+// other and with main too. Branch name comes from CI (GITHUB_HEAD_REF for
+// pull_request events, GITHUB_REF_NAME for push events); local/non-CI
+// builds see neither and resolve to the plain main identity.
+val ciBranch = (System.getenv("GITHUB_HEAD_REF")?.takeIf { it.isNotEmpty() }
+    ?: System.getenv("GITHUB_REF_NAME"))
+    ?.takeIf { it != "main" }
+val branchSlug = ciBranch
+    ?.replace(Regex("[^a-zA-Z0-9]+"), "_")
+    ?.lowercase()
+    ?.let { if (it.firstOrNull()?.isDigit() == true) "b_$it" else it }
+
 android {
     namespace = "com.caprado.romgi"
     compileSdk = flutter.compileSdkVersion
@@ -22,12 +39,19 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.caprado.romgi"
+        applicationId = if (branchSlug != null) {
+            "com.bi0shacker001.romgi.branch.$branchSlug"
+        } else {
+            "com.bi0shacker001.romgi"
+        }
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+
+        manifestPlaceholders["appLabel"] =
+            if (ciBranch != null) "romgi-bio ($ciBranch)" else "romgi-bio"
     }
 
     buildTypes {
