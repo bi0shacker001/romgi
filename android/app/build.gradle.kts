@@ -22,6 +22,24 @@ val branchSlug = ciBranch
     ?.lowercase()
     ?.let { if (it.firstOrNull()?.isDigit() == true) "b_$it" else it }
 
+val isFeatureBranch = branchSlug != null
+
+// Feature-branch builds are rolling releases — every push replaces the
+// previous one under the same tag without pubspec.yaml's version ever
+// changing, so every build on a branch would otherwise report the exact
+// same version with no way to tell which one is actually installed.
+// revision.txt holds a plain integer, bumped by CI (see the "Bump build
+// revision" step in pr-checks.yml) on every push to a feature branch, and
+// stamped onto versionName below as "-rN". It's reset to a fresh count
+// whenever a new feature branch is cut from main — main itself never
+// reads it (isFeatureBranch is false there), so it doesn't need the file.
+val revisionFile = file("revision.txt")
+val buildRevision = if (isFeatureBranch && revisionFile.exists()) {
+    revisionFile.readText().trim().toIntOrNull()
+} else {
+    null
+}
+
 android {
     namespace = "com.caprado.romgi"
     compileSdk = flutter.compileSdkVersion
@@ -47,7 +65,11 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionName = if (buildRevision != null) {
+            "${flutter.versionName}-r$buildRevision"
+        } else {
+            flutter.versionName
+        }
         multiDexEnabled = true
 
         manifestPlaceholders["appLabel"] =
