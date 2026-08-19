@@ -1563,49 +1563,97 @@ class DownloadService {
     }
 
     try {
-      final entry = await _romDb.getEntry(task.slug);
-      final licenseLink = entry?.links
-          .where((l) => l.type == 'ZRIF string')
-          .firstOrNull;
-      if (licenseLink == null) {
-        return await bail('no ZRIF license link found in the catalog for this title');
-      }
-
-      final response = await _dio.get<String>(
-        licenseLink.url,
-        options: Options(responseType: ResponseType.plain),
-      );
-      final zrif = response.data?.trim();
-      if (zrif == null || zrif.isEmpty) {
-        return await bail('license link returned an empty response');
-      }
-
-      switch (mode) {
-        case VitaDownloadMode.pkgWithLicense:
-          final platformDir = await _storage.getPlatformDirectory(task.platform);
-          final baseName = p.basenameWithoutExtension(pkgPath);
-          final gameDir = Directory(p.join(platformDir.path, baseName));
-          if (!await gameDir.exists()) await gameDir.create(recursive: true);
-          final movedPkgPath = p.join(gameDir.path, p.basename(pkgPath));
-          await File(pkgPath).rename(movedPkgPath);
-          await File(p.join(gameDir.path, '$baseName.zrif')).writeAsString(zrif);
-          return gameDir.path;
-        case VitaDownloadMode.decryptToZip:
-          final platformDir = await _storage.getPlatformDirectory(task.platform);
-          final zipPath = await VitaDecryptService.decryptPkgToZip(
-            pkgPath: pkgPath,
-            zrif: zrif,
-            outputDir: platformDir.path,
-          );
-          await File(pkgPath).delete();
-          return zipPath;
-        case VitaDownloadMode.pkgOnly:
-          return pkgPath;
-      }
+      final zrif = await _fetchVitaZrif(task);
+      return await _applyVitaLicenseWithZrif(task, pkgPath, mode, zrif);
     } catch (e) {
       // Best-effort — the raw pkg is still a usable download on its own.
       return bail(e.toString());
     }
+  }
+
+  /// Fetches the zRIF license string for [task] from its catalog entry.
+  /// Throws a [StateError] with a user-facing message if there's no
+  /// license link or the link doesn't resolve — most commonly a 404
+  /// because the upstream catalog's static-content mirror is missing or
+  /// stale for this title, which we have no control over.
+  Future<String> _fetchVitaZrif(DownloadTask task) async {
+    final entry = await _romDb.getEntry(task.slug);
+    final licenseLink =
+        entry?.links.where((l) => l.type == 'ZRIF string').firstOrNull;
+    if (licenseLink == null) {
+      throw StateError('no ZRIF license link found in the catalog for this title');
+    }
+
+    final response = await _dio.get<String>(
+      licenseLink.url,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final zrif = response.data?.trim();
+    if (zrif == null || zrif.isEmpty) {
+      throw StateError('license link returned an empty response');
+    }
+    return zrif;
+  }
+
+  Future<String> _applyVitaLicenseWithZrif(
+    DownloadTask task,
+    String pkgPath,
+    VitaDownloadMode mode,
+    String zrif,
+  ) async {
+    switch (mode) {
+      case VitaDownloadMode.pkgWithLicense:
+        final platformDir = await _storage.getPlatformDirectory(task.platform);
+        final baseName = p.basenameWithoutExtension(pkgPath);
+        final gameDir = Directory(p.join(platformDir.path, baseName));
+        if (!await gameDir.exists()) await gameDir.create(recursive: true);
+        final movedPkgPath = p.join(gameDir.path, p.basename(pkgPath));
+        if (p.equals(pkgPath, movedPkgPath) == false) {
+          await File(pkgPath).rename(movedPkgPath);
+        }
+        await File(p.join(gameDir.path, '$baseName.zrif')).writeAsString(zrif);
+        return gameDir.path;
+      case VitaDownloadMode.decryptToZip:
+        final platformDir = await _storage.getPlatformDirectory(task.platform);
+        final zipPath = await VitaDecryptService.decryptPkgToZip(
+          pkgPath: pkgPath,
+          zrif: zrif,
+          outputDir: platformDir.path,
+        );
+        await File(pkgPath).delete();
+        return zipPath;
+      case VitaDownloadMode.pkgOnly:
+        return pkgPath;
+    }
+  }
+
+  /// Manually (re)applies a Vita license to an already-completed `.pkg`
+  /// download — the fallback path for when [_maybeHandleVitaLicense]
+  /// bailed out (e.g. the catalog's ZRIF link 404s). If [manualZrif] is
+  /// given, it's used as-is instead of fetching from the catalog. Updates
+  /// and persists the task's [DownloadTask.filePath] on success; throws
+  /// on failure so the caller (UI) can surface the error directly, rather
+  /// than silently keeping the plain pkg like the automatic path does.
+  Future<void> applyVitaLicense(
+    DownloadTask task,
+    VitaDownloadMode mode, {
+    String? manualZrif,
+  }) async {
+    final pkgPath = task.filePath;
+    if (pkgPath == null || !await File(pkgPath).exists()) {
+      throw StateError('The downloaded .pkg file could not be found on disk.');
+    }
+
+    final manual = manualZrif?.trim();
+    final zrif = (manual != null && manual.isNotEmpty)
+        ? manual
+        : await _fetchVitaZrif(task);
+
+    final finalPath = await _applyVitaLicenseWithZrif(task, pkgPath, mode, zrif);
+    final updatedTask = task.copyWith(filePath: finalPath);
+    _activeTasks[task.id] = updatedTask;
+    await _db.updateDownload(updatedTask);
+    _downloadController.add(updatedTask);
   }
 
   /// The on-disk filename to save a task under: the game's title (from the

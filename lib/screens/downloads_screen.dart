@@ -327,6 +327,14 @@ class _CompletedDownloadTile extends ConsumerWidget {
 
   const _CompletedDownloadTile({required this.task});
 
+  // A completed Vita download still sitting at a plain top-level .pkg means
+  // the license either wasn't requested (pkgOnly) or the automatic fetch
+  // failed silently — either way, offer the manual fallback.
+  bool get _isUnlicensedVitaPkg =>
+      task.platform == 'psv' &&
+      task.filePath != null &&
+      task.filePath!.toLowerCase().endsWith('.pkg');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
@@ -351,6 +359,15 @@ class _CompletedDownloadTile extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_isUnlicensedVitaPkg)
+            IconButton(
+              icon: const Icon(Icons.vpn_key_outlined),
+              tooltip: 'Decrypt with license',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => _VitaLicenseDialog(task: task),
+              ),
+            ),
           Icon(
             Icons.check_circle,
             color: Theme.of(context).colorScheme.primary,
@@ -366,6 +383,141 @@ class _CompletedDownloadTile extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _VitaLicenseDialog extends ConsumerStatefulWidget {
+  final DownloadTask task;
+
+  const _VitaLicenseDialog({required this.task});
+
+  @override
+  ConsumerState<_VitaLicenseDialog> createState() => _VitaLicenseDialogState();
+}
+
+class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
+  final _zrifController = TextEditingController();
+  late VitaDownloadMode _mode;
+  bool _applying = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = ref.read(settingsProvider).vitaDownloadMode;
+    if (_mode == VitaDownloadMode.pkgOnly) {
+      _mode = VitaDownloadMode.pkgWithLicense;
+    }
+  }
+
+  @override
+  void dispose() {
+    _zrifController.dispose();
+    super.dispose();
+  }
+
+  String _modeName(VitaDownloadMode mode) {
+    switch (mode) {
+      case VitaDownloadMode.pkgOnly:
+        return 'PKG only';
+      case VitaDownloadMode.pkgWithLicense:
+        return 'PKG + license (folder)';
+      case VitaDownloadMode.decryptToZip:
+        return 'Decrypt to zip';
+    }
+  }
+
+  Future<void> _apply() async {
+    setState(() {
+      _applying = true;
+      _error = null;
+    });
+    try {
+      await ref.read(downloadProvider.notifier).applyVitaLicense(
+            widget.task,
+            _mode,
+            manualZrif: _zrifController.text,
+          );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _applying = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Decrypt with license'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final mode in [
+              VitaDownloadMode.pkgWithLicense,
+              VitaDownloadMode.decryptToZip,
+            ])
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  mode == _mode
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: mode == _mode
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                title: Text(_modeName(mode)),
+                onTap: () => setState(() => _mode = mode),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'By default this re-fetches the zRIF license from the catalog. '
+              'If that keeps failing (e.g. a 404), paste the zRIF string '
+              'directly instead:',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _zrifController,
+              decoration: const InputDecoration(
+                labelText: 'zRIF (optional)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 3,
+              minLines: 1,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _applying ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _applying ? null : _apply,
+          child: _applying
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Apply'),
+        ),
+      ],
     );
   }
 }

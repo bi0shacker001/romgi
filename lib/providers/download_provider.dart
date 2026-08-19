@@ -265,6 +265,15 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     await refresh();
   }
 
+  Future<void> applyVitaLicense(
+    DownloadTask task,
+    VitaDownloadMode mode, {
+    String? manualZrif,
+  }) async {
+    await _service.applyVitaLicense(task, mode, manualZrif: manualZrif);
+    await refresh();
+  }
+
   Future<void> clearCompletedDownloads() async {
     await _service.clearCompletedDownloads();
     await refresh();
