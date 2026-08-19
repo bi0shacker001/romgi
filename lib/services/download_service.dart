@@ -1584,11 +1584,77 @@ class DownloadService {
     return (sourceUrl == null || sourceUrl.isEmpty) ? null : sourceUrl;
   }
 
+  // NoPayStation's own public TSVs — the authoritative source our catalog
+  // build (db/sources/nopaystation/scraper.py) reads from in the first
+  // place. Content ID -> zRIF, cached in memory since these are a few MB
+  // each and change rarely.
+  static const _npsZrifTsvUrls = [
+    'https://nopaystation.com/tsv/PSV_GAMES.tsv',
+    'https://nopaystation.com/tsv/PSV_DEMOS.tsv',
+    'https://nopaystation.com/tsv/PSV_DLCS.tsv',
+  ];
+  Map<String, String>? _npsZrifCache;
+  DateTime? _npsZrifCacheAt;
+
+  Future<Map<String, String>> _loadNoPayStationZrifs() async {
+    final cachedAt = _npsZrifCacheAt;
+    final cache = _npsZrifCache;
+    if (cache != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < const Duration(hours: 12)) {
+      return cache;
+    }
+
+    final merged = <String, String>{};
+    for (final url in _npsZrifTsvUrls) {
+      try {
+        final response = await _dio.get<String>(
+          url,
+          options: Options(responseType: ResponseType.plain),
+        );
+        final body = response.data;
+        if (body == null) continue;
+        merged.addAll(_parseNpsZrifTsv(body));
+      } catch (_) {
+        // Best-effort — a partial merge (or the stale cache) still helps.
+      }
+    }
+
+    if (merged.isNotEmpty) {
+      _npsZrifCache = merged;
+      _npsZrifCacheAt = DateTime.now();
+      return merged;
+    }
+    return cache ?? {};
+  }
+
+  Map<String, String> _parseNpsZrifTsv(String body) {
+    final lines = body.split('\n');
+    if (lines.isEmpty) return {};
+    final header = lines.first.split('\t');
+    final contentIdIdx = header.indexOf('Content ID');
+    final zrifIdx = header.indexOf('zRIF');
+    if (contentIdIdx == -1 || zrifIdx == -1) return {};
+
+    final result = <String, String>{};
+    for (final line in lines.skip(1)) {
+      if (line.trim().isEmpty) continue;
+      final cols = line.split('\t');
+      if (cols.length <= contentIdIdx || cols.length <= zrifIdx) continue;
+      final contentId = cols[contentIdIdx].trim();
+      final zrif = cols[zrifIdx].trim();
+      if (contentId.isNotEmpty && zrif.isNotEmpty) {
+        result[contentId] = zrif;
+      }
+    }
+    return result;
+  }
+
   /// Fetches the zRIF license string for [task] from its catalog entry.
-  /// Throws a [StateError] with a user-facing message if there's no
-  /// license link or the link doesn't resolve — most commonly a 404
-  /// because the upstream catalog's static-content mirror is missing or
-  /// stale for this title, which we have no control over.
+  /// Tries NoPayStation's own public TSVs first (authoritative, and not
+  /// subject to the GitHub-hosted per-title mirror's staleness/404s), then
+  /// falls back to the catalog's stored link URL. Throws a [StateError]
+  /// with a user-facing message if neither works.
   Future<String> _fetchVitaZrif(DownloadTask task) async {
     final entry = await _romDb.getEntry(task.slug);
     final licenseLink =
@@ -1597,15 +1663,35 @@ class DownloadService {
       throw StateError('no ZRIF license link found in the catalog for this title');
     }
 
-    final response = await _dio.get<String>(
-      licenseLink.url,
-      options: Options(responseType: ResponseType.plain),
-    );
-    final zrif = response.data?.trim();
-    if (zrif == null || zrif.isEmpty) {
-      throw StateError('license link returned an empty response');
+    // licenseLink.filename is the PSN content ID (see add_psv_links in
+    // db/sources/nopaystation/scraper.py) — the same key NoPayStation's
+    // TSVs are indexed by.
+    final contentId = licenseLink.filename;
+    if (contentId.isNotEmpty) {
+      final npsZrifs = await _loadNoPayStationZrifs();
+      final npsZrif = npsZrifs[contentId];
+      if (npsZrif != null && npsZrif.isNotEmpty) {
+        return npsZrif;
+      }
     }
-    return zrif;
+
+    try {
+      final response = await _dio.get<String>(
+        licenseLink.url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final zrif = response.data?.trim();
+      if (zrif == null || zrif.isEmpty) {
+        throw StateError('license link returned an empty response');
+      }
+      return zrif;
+    } on StateError {
+      rethrow;
+    } catch (_) {
+      throw StateError(
+        'NoPayStation lookup and catalog mirror both failed for this title',
+      );
+    }
   }
 
   Future<String> _applyVitaLicenseWithZrif(
