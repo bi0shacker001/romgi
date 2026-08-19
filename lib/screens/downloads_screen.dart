@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
@@ -401,6 +402,7 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   late VitaDownloadMode _mode;
   bool _applying = false;
   String? _error;
+  String? _sourceUrl;
 
   @override
   void initState() {
@@ -409,6 +411,20 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
     if (_mode == VitaDownloadMode.pkgOnly) {
       _mode = VitaDownloadMode.pkgWithLicense;
     }
+    ref
+        .read(downloadProvider.notifier)
+        .getVitaLicenseSourceUrl(widget.task)
+        .then((url) {
+      if (mounted) setState(() => _sourceUrl = url);
+    });
+  }
+
+  Future<void> _openSource() async {
+    final url = _sourceUrl;
+    if (url == null) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -476,16 +492,26 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
               ),
             const SizedBox(height: 8),
             Text(
-              'By default this re-fetches the zRIF license from the catalog. '
-              'If that keeps failing (e.g. a 404), paste the zRIF string '
-              'directly instead:',
+              'Apply retries fetching the zRIF license from the catalog. '
+              'If that keeps failing (e.g. a 404), open the title\'s '
+              'NoPayStation page, copy its zRIF, and paste it below instead:',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _sourceUrl == null ? null : _openSource,
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: Text(
+                _sourceUrl == null
+                    ? 'No catalog page found for this title'
+                    : 'Open on NoPayStation',
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _zrifController,
               decoration: const InputDecoration(
-                labelText: 'zRIF (optional)',
+                labelText: 'zRIF (optional — paste after copying above)',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

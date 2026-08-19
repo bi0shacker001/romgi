@@ -274,6 +274,10 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     await refresh();
   }
 
+  Future<String?> getVitaLicenseSourceUrl(DownloadTask task) {
+    return _service.getVitaLicenseSourceUrl(task);
+  }
+
   Future<void> clearCompletedDownloads() async {
     await _service.clearCompletedDownloads();
     await refresh();

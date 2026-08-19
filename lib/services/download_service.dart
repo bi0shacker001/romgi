@@ -1571,6 +1571,19 @@ class DownloadService {
     }
   }
 
+  /// The NoPayStation page for [task]'s title, if the catalog has a ZRIF
+  /// link for it — lets the UI send the user to go copy the zRIF
+  /// themselves when our own fetch of it keeps 404ing (upstream's mirror
+  /// of the raw ZRIF file, not the NoPayStation page itself, is what's
+  /// unreliable).
+  Future<String?> getVitaLicenseSourceUrl(DownloadTask task) async {
+    final entry = await _romDb.getEntry(task.slug);
+    final licenseLink =
+        entry?.links.where((l) => l.type == 'ZRIF string').firstOrNull;
+    final sourceUrl = licenseLink?.sourceUrl;
+    return (sourceUrl == null || sourceUrl.isEmpty) ? null : sourceUrl;
+  }
+
   /// Fetches the zRIF license string for [task] from its catalog entry.
   /// Throws a [StateError] with a user-facing message if there's no
   /// license link or the link doesn't resolve — most commonly a 404
