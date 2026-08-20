@@ -110,4 +110,19 @@ class ZrifCodec {
     final end = field.indexOf(0);
     return utf8.decode(field.sublist(0, end == -1 ? field.length : end));
   }
+
+  /// The reverse of [decodeToRif]: re-derives a usable zRIF string from a
+  /// decoded `.rif`/`work.bin`, so we don't need to keep the original zRIF
+  /// text around once we have the binary form on disk. The result isn't
+  /// guaranteed to be byte-identical to whatever string originally
+  /// produced [rif] (compressors can make different valid choices), but
+  /// decoding it back always reproduces the same [rif] bytes, which is
+  /// the only property that actually matters here.
+  static String encodeFromRif(Uint8List rif) {
+    if (rif.length != rifSize) {
+      throw ArgumentError('rif must be exactly $rifSize bytes');
+    }
+    final encoder = ZLibEncoder(dictionary: zrifDictionary);
+    return base64.encode(encoder.convert(rif));
+  }
 }

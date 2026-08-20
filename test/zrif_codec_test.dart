@@ -58,5 +58,27 @@ void main() {
       rif.setRange(0x10, 0x10 + 3, utf8.encode('ABC'));
       expect(ZrifCodec.contentIdFromRif(rif), 'ABC');
     });
+
+    test('encodeFromRif then decodeToRif recovers the original rif bytes',
+        () {
+      final rif = Uint8List(ZrifCodec.rifSize);
+      for (var i = 0; i < rif.length; i++) {
+        rif[i] = (i * 7) % 256;
+      }
+      final contentId = 'PCSB00001_00-TESTGAME000000001';
+      rif.fillRange(0x10, 0x10 + 0x30, 0);
+      rif.setRange(0x10, 0x10 + contentId.length, utf8.encode(contentId));
+
+      final zrif = ZrifCodec.encodeFromRif(rif);
+      final decoded = ZrifCodec.decodeToRif(zrif);
+
+      expect(decoded, equals(rif));
+      expect(ZrifCodec.contentIdFromRif(decoded), contentId);
+    });
+
+    test('encodeFromRif rejects the wrong length', () {
+      expect(() => ZrifCodec.encodeFromRif(Uint8List(10)),
+          throwsArgumentError);
+    });
   });
 }

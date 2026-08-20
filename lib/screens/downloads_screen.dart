@@ -412,16 +412,17 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   String? _sourceUrl;
 
   // Already has a saved license — either the legacy per-game subfolder
-  // layout, or the current flat <name>.zrif sitting next to the pkg. The
-  // only thing worth doing here is merging it into a decrypted zip, so
-  // default to that instead of the general per-platform setting.
+  // layout, or the current flat <name>.rif sitting next to the pkg (a
+  // leftover <name>.zrif from before that switch also counts). The only
+  // thing worth doing here is merging it into a decrypted zip, so default
+  // to that instead of the general per-platform setting.
   bool get _hasExistingLicense {
     final path = widget.task.filePath;
     if (path == null) return false;
     if (FileSystemEntity.isDirectorySync(path)) return true;
-    final zrifPath =
-        '${p.withoutExtension(path)}.zrif';
-    return File(zrifPath).existsSync();
+    final withoutExt = p.withoutExtension(path);
+    return File('$withoutExt.rif').existsSync() ||
+        File('$withoutExt.zrif').existsSync();
   }
 
   @override
