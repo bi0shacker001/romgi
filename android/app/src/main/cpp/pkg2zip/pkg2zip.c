@@ -488,7 +488,36 @@ int main(int argc, char* argv[])
 
         if (type != PKG_TYPE_VITA_PATCH && zrif_arg != NULL)
         {
-            zrif_decode(zrif_arg, rif, rif_size);
+            // Accept a raw, already-decoded .rif/work.bin file directly, in
+            // addition to a zRIF string: if zrif_arg names a plain file of
+            // exactly rif_size bytes, read it as-is instead of decoding it
+            // as a zRIF. Lets a caller that already has the decoded license
+            // (e.g. saved from a previous zrif_decode) skip re-encoding it
+            // back to a string just to have us decode it again. A zRIF
+            // string is never a valid path of that exact byte length, so
+            // this can't misfire on real zRIF input.
+            FILE* rif_file = fopen(zrif_arg, "rb");
+            int read_as_file = 0;
+            if (rif_file != NULL)
+            {
+                fseek(rif_file, 0, SEEK_END);
+                long rif_file_size = ftell(rif_file);
+                if (rif_file_size == (long)rif_size)
+                {
+                    fseek(rif_file, 0, SEEK_SET);
+                    if (fread(rif, 1, rif_size, rif_file) == rif_size)
+                    {
+                        read_as_file = 1;
+                    }
+                }
+                fclose(rif_file);
+            }
+
+            if (!read_as_file)
+            {
+                zrif_decode(zrif_arg, rif, rif_size);
+            }
+
             const char* rif_contentid = (char*)rif + (type == PKG_TYPE_VITA_PSM ? 0x50 : 0x10);
             if (strncmp(rif_contentid, content, 0x30) != 0)
             {

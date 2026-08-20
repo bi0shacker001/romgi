@@ -168,7 +168,7 @@ romgi is a tool for downloading content; it does not host any ROMs or copyrighte
 - **Data Sources**: MiNERVA Archive, Internet Archive, NoPayStation, MarioCube
 - **Inspiration**: [pkgi-psp](https://github.com/bucanero/pkgi-psp), [Kekatsu-DS](https://github.com/cavv-dev/Kekatsu-DS)
 - **Framework**: [Flutter](https://flutter.dev/)
-- **Vendored Code**: [pkg2zip](https://github.com/mmozeiko/pkg2zip) by mmozeiko (public domain / Unlicense) — vendored unmodified at `android/app/src/main/cpp/pkg2zip/` to decrypt PS Vita `.pkg` downloads into an install-ready zip
+- **Vendored Code**: [pkg2zip](https://github.com/mmozeiko/pkg2zip) by mmozeiko (public domain / Unlicense) — vendored at `android/app/src/main/cpp/pkg2zip/` (one small local patch on top, see the comment in `CMakeLists.txt`) to decrypt PS Vita `.pkg` downloads into an install-ready zip
 
 ## License
 

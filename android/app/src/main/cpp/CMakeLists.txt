@@ -2,14 +2,20 @@ cmake_minimum_required(VERSION 3.22.1)
 project(romgi_pkg2zip)
 
 # pkg2zip (https://github.com/mmozeiko/pkg2zip, public domain/Unlicense) is
-# vendored unmodified into the pkg2zip/ subdirectory below, at upstream
-# commit 9222c4e00235dfe7914e9db0cc352da07e63d9f9 - only the files actually
+# vendored into the pkg2zip/ subdirectory below, at upstream commit
+# 9222c4e00235dfe7914e9db0cc352da07e63d9f9 - only the files actually
 # compiled below (see PKG2ZIP_SOURCES), not the whole upstream repo (its
 # build.cmd/makefile/README/rif2zrif.py/zrif2rif.py aren't part of our
 # build). Previously pulled in as a git submodule; vendored directly
 # instead so the source is self-contained and reviewable in a single diff
 # (relevant if this ever needs to be submitted upstream) without requiring
 # a submodule checkout step.
+#
+# One small local patch on top of upstream, in pkg2zip.c's license
+# argument handling: accept a raw, already-decoded .rif file directly (not
+# just a zRIF string). We sometimes already have the decoded rif on disk
+# (see lib/services/zrif_codec.dart) and would otherwise have to re-encode
+# it back into a zRIF string just for pkg2zip to decode it again.
 #
 # Its main() already implements exactly the operation we need - "decrypt
 # file.pkg [zRIF] -> zip" - as a CLI tool, so rather than reverse-engineer

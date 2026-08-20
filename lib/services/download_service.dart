@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -40,6 +41,29 @@ enum VitaDownloadMode {
   /// Fetch the zRIF license link and decrypt the pkg to a NoNpDrm-format
   /// zip via the bundled pkg2zip binary.
   decryptToZip,
+}
+
+/// A Vita license, in whichever form we already have it — either a zRIF
+/// string (freshly fetched, or pasted by the user) or the path to an
+/// already-decoded `.rif`/`work.bin` file on disk. Keeping both possible
+/// forms around lets callers that already have a `.rif` file hand it
+/// straight to pkg2zip (which accepts either directly) instead of
+/// round-tripping it through a re-encoded zRIF string just to have
+/// pkg2zip decode it straight back.
+class _VitaLicense {
+  final String? zrif;
+  final String? rifPath;
+
+  const _VitaLicense.fromZrif(String this.zrif) : rifPath = null;
+  const _VitaLicense.fromRifFile(String this.rifPath) : zrif = null;
+
+  /// The raw 512-byte rif, decoding from [zrif] if this wasn't already
+  /// backed by an existing `.rif` file.
+  Future<Uint8List> rifBytes() async {
+    final path = rifPath;
+    if (path != null) return File(path).readAsBytes();
+    return ZrifCodec.decodeToRif(zrif!);
+  }
 }
 
 /// Outcome of enqueuing a whole disc group at once.
@@ -1566,7 +1590,12 @@ class DownloadService {
 
     try {
       final zrif = await _fetchVitaZrif(task);
-      return await _applyVitaLicenseWithZrif(task, pkgPath, mode, zrif);
+      return await _applyVitaLicense(
+        task,
+        pkgPath,
+        mode,
+        _VitaLicense.fromZrif(zrif),
+      );
     } catch (e) {
       // Best-effort — the raw pkg is still a usable download on its own.
       return bail(e.toString());
@@ -1696,11 +1725,11 @@ class DownloadService {
     }
   }
 
-  Future<String> _applyVitaLicenseWithZrif(
+  Future<String> _applyVitaLicense(
     DownloadTask task,
     String pkgPath,
     VitaDownloadMode mode,
-    String zrif,
+    _VitaLicense license,
   ) async {
     switch (mode) {
       case VitaDownloadMode.pkgWithLicense:
@@ -1711,19 +1740,22 @@ class DownloadService {
         // binary rif after the game instead removes that requirement
         // entirely, so DLCs/games/updates never need grouping. Vita3K's
         // manual license picker accepts a same-content file named either
-        // .bin or .rif. A later "decrypt with license" pass re-derives the
-        // zRIF string from this file (ZrifCodec.encodeFromRif) rather than
-        // us keeping a separate .zrif text copy around.
+        // .bin or .rif.
         final dir = p.dirname(pkgPath);
         final baseName = p.basenameWithoutExtension(pkgPath);
-        await File(p.join(dir, '$baseName.rif'))
-            .writeAsBytes(ZrifCodec.decodeToRif(zrif));
+        final rifPath = p.join(dir, '$baseName.rif');
+        // Already backed by this exact file (re-merging onto itself) —
+        // nothing to do.
+        if (!p.equals(license.rifPath ?? '', rifPath)) {
+          await File(rifPath).writeAsBytes(await license.rifBytes());
+        }
         return pkgPath;
       case VitaDownloadMode.decryptToZip:
         final platformDir = await _storage.getPlatformDirectory(task.platform);
         final zipPath = await VitaDecryptService.decryptPkgToZip(
           pkgPath: pkgPath,
-          zrif: zrif,
+          zrif: license.zrif,
+          rifFilePath: license.rifPath,
           outputDir: platformDir.path,
         );
         await File(pkgPath).delete();
@@ -1733,17 +1765,18 @@ class DownloadService {
     }
   }
 
-  /// Reads back a usable zRIF string from whichever license file(s) are
-  /// present in [candidates]: a `.zrif` text file (legacy, or a leftover
-  /// from testing) is used as-is if present, otherwise a `.rif`/`work.bin`
-  /// binary file is decoded and re-encoded via [ZrifCodec.encodeFromRif].
-  /// Returns null if none of [candidates] exist.
-  Future<String?> _readExistingZrif(List<File> candidates) async {
+  /// Finds whichever license file is present in [candidates] — a `.zrif`
+  /// text file (legacy, or a leftover from testing) is preferred as-is if
+  /// present, otherwise a `.rif`/`work.bin` binary file is used directly
+  /// (no need to decode+re-encode it into a string; pkg2zip accepts the
+  /// file itself). Returns null if none of [candidates] exist.
+  _VitaLicense? _findExistingLicense(List<File> candidates) {
     final zrifFile = candidates
         .where((f) => f.path.toLowerCase().endsWith('.zrif') && f.existsSync())
         .firstOrNull;
     if (zrifFile != null) {
-      return (await zrifFile.readAsString()).trim();
+      final text = zrifFile.readAsStringSync().trim();
+      if (text.isNotEmpty) return _VitaLicense.fromZrif(text);
     }
     final rifFile = candidates
         .where(
@@ -1754,7 +1787,7 @@ class DownloadService {
         )
         .firstOrNull;
     if (rifFile != null) {
-      return ZrifCodec.encodeFromRif(await rifFile.readAsBytes());
+      return _VitaLicense.fromRifFile(rifFile.path);
     }
     return null;
   }
@@ -1787,7 +1820,7 @@ class DownloadService {
     String pkgPath;
     Directory? sourceFolder;
     List<File> siblingLicenseFiles = const [];
-    String? existingZrif;
+    _VitaLicense? existingLicense;
     if (await Directory(taskPath).exists()) {
       // Legacy layout: pkg + license inside a per-game subfolder.
       sourceFolder = Directory(taskPath);
@@ -1799,7 +1832,7 @@ class DownloadService {
         throw StateError('No .pkg file found in $taskPath.');
       }
       pkgPath = pkgFile.path;
-      existingZrif = await _readExistingZrif(entries);
+      existingLicense = _findExistingLicense(entries);
     } else if (await File(taskPath).exists()) {
       // Flat layout (current): pkg with an optional <name>.rif sibling.
       pkgPath = taskPath;
@@ -1809,19 +1842,17 @@ class DownloadService {
         File(p.join(dir.path, '$baseName.zrif')),
         File(p.join(dir.path, '$baseName.rif')),
       ].where((f) => f.existsSync()).toList();
-      existingZrif = await _readExistingZrif(siblingLicenseFiles);
+      existingLicense = _findExistingLicense(siblingLicenseFiles);
     } else {
       throw StateError('The downloaded .pkg file could not be found on disk.');
     }
 
     final manual = manualZrif?.trim();
-    final zrif = (manual != null && manual.isNotEmpty)
-        ? manual
-        : (existingZrif != null && existingZrif.isNotEmpty)
-            ? existingZrif
-            : await _fetchVitaZrif(task);
+    final license = (manual != null && manual.isNotEmpty)
+        ? _VitaLicense.fromZrif(manual)
+        : existingLicense ?? _VitaLicense.fromZrif(await _fetchVitaZrif(task));
 
-    final finalPath = await _applyVitaLicenseWithZrif(task, pkgPath, mode, zrif);
+    final finalPath = await _applyVitaLicense(task, pkgPath, mode, license);
 
     // pkgWithLicense round-tripping back onto itself needs no cleanup;
     // decryptToZip consumes the pkg but leaves the legacy subfolder (now
