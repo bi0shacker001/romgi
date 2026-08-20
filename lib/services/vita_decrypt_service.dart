@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 /// Resolves the path to the bundled pkg2zip executable and invokes it to
 /// decrypt a PS Vita `.pkg` into a NoNpDrm-format zip.
 ///
-/// pkg2zip (https://github.com/mmozeiko/pkg2zip) is vendored unmodified as
-/// the `external/pkg2zip` submodule and compiled by
+/// pkg2zip (https://github.com/mmozeiko/pkg2zip) is vendored unmodified at
+/// `android/app/src/main/cpp/pkg2zip` and compiled by
 /// `android/app/src/main/cpp/CMakeLists.txt` into a real ELF executable at
 /// `jniLibs/<abi>/libpkg2zip.so` — named and placed that way so Android's
 /// APK packaging puts it under the app's own (executable) nativeLibraryDir.
