@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/models.dart';
@@ -410,18 +411,23 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   String? _error;
   String? _sourceUrl;
 
-  // Already a pkg+license folder (pkgWithLicense) — the only thing worth
-  // doing here is merging it into a decrypted zip, so default to that
-  // instead of the general per-platform setting.
-  bool get _isFolder {
+  // Already has a saved license — either the legacy per-game subfolder
+  // layout, or the current flat <name>.zrif sitting next to the pkg. The
+  // only thing worth doing here is merging it into a decrypted zip, so
+  // default to that instead of the general per-platform setting.
+  bool get _hasExistingLicense {
     final path = widget.task.filePath;
-    return path != null && FileSystemEntity.isDirectorySync(path);
+    if (path == null) return false;
+    if (FileSystemEntity.isDirectorySync(path)) return true;
+    final zrifPath =
+        '${p.withoutExtension(path)}.zrif';
+    return File(zrifPath).existsSync();
   }
 
   @override
   void initState() {
     super.initState();
-    if (_isFolder) {
+    if (_hasExistingLicense) {
       _mode = VitaDownloadMode.decryptToZip;
     } else {
       _mode = ref.read(settingsProvider).vitaDownloadMode;
@@ -485,13 +491,13 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isFolder ? 'Merge into decrypted zip' : 'Decrypt with license'),
+      title: Text(_hasExistingLicense ? 'Merge into decrypted zip' : 'Decrypt with license'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_isFolder) ...[
+            if (_hasExistingLicense) ...[
               Text(
                 'This pkg + license folder will be merged into a single '
                 'decrypted zip; the folder is removed once that succeeds.',
@@ -518,7 +524,7 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
               ),
             const SizedBox(height: 8),
             Text(
-              _isFolder
+              _hasExistingLicense
                   ? 'Apply reuses the license already saved in this folder. '
                       'To use a different one instead, paste a zRIF below:'
                   : 'Apply retries fetching the zRIF license from the catalog. '

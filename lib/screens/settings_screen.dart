@@ -437,7 +437,7 @@ class SettingsScreen extends ConsumerWidget {
       case VitaDownloadMode.pkgOnly:
         return 'PKG only';
       case VitaDownloadMode.pkgWithLicense:
-        return 'PKG + license (folder)';
+        return 'PKG + license';
       case VitaDownloadMode.decryptToZip:
         return 'Decrypt to zip';
     }
@@ -448,8 +448,8 @@ class SettingsScreen extends ConsumerWidget {
       case VitaDownloadMode.pkgOnly:
         return 'Download the pkg as-is';
       case VitaDownloadMode.pkgWithLicense:
-        return 'Also fetch the zRIF license and keep it with the pkg in a '
-            'per-game folder, ready for Vita3K to import';
+        return 'Also fetch the license and save it next to the pkg '
+            '(same name, .rif) — ready for Vita3K to import';
       case VitaDownloadMode.decryptToZip:
         return 'Fetch the license and decrypt the pkg to an install-ready '
             'zip using the bundled pkg2zip';
