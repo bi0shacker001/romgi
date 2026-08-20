@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -330,11 +332,15 @@ class _CompletedDownloadTile extends ConsumerWidget {
 
   // A completed Vita download still sitting at a plain top-level .pkg means
   // the license either wasn't requested (pkgOnly) or the automatic fetch
-  // failed silently — either way, offer the manual fallback.
-  bool get _isUnlicensedVitaPkg =>
-      task.platform == 'psv' &&
-      task.filePath != null &&
-      task.filePath!.toLowerCase().endsWith('.pkg');
+  // failed silently; a pkg+license folder (pkgWithLicense mode) is also
+  // eligible, to let the user merge it into a decrypted zip on request.
+  // Either way, offer the license/decrypt action.
+  bool get _hasVitaPkgToDecrypt {
+    if (task.platform != 'psv' || task.filePath == null) return false;
+    final path = task.filePath!;
+    if (path.toLowerCase().endsWith('.pkg')) return true;
+    return FileSystemEntity.isDirectorySync(path);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -360,7 +366,7 @@ class _CompletedDownloadTile extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_isUnlicensedVitaPkg)
+          if (_hasVitaPkgToDecrypt)
             IconButton(
               icon: const Icon(Icons.vpn_key_outlined),
               tooltip: 'Decrypt with license',
@@ -404,12 +410,24 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   String? _error;
   String? _sourceUrl;
 
+  // Already a pkg+license folder (pkgWithLicense) — the only thing worth
+  // doing here is merging it into a decrypted zip, so default to that
+  // instead of the general per-platform setting.
+  bool get _isFolder {
+    final path = widget.task.filePath;
+    return path != null && FileSystemEntity.isDirectorySync(path);
+  }
+
   @override
   void initState() {
     super.initState();
-    _mode = ref.read(settingsProvider).vitaDownloadMode;
-    if (_mode == VitaDownloadMode.pkgOnly) {
-      _mode = VitaDownloadMode.pkgWithLicense;
+    if (_isFolder) {
+      _mode = VitaDownloadMode.decryptToZip;
+    } else {
+      _mode = ref.read(settingsProvider).vitaDownloadMode;
+      if (_mode == VitaDownloadMode.pkgOnly) {
+        _mode = VitaDownloadMode.pkgWithLicense;
+      }
     }
     ref
         .read(downloadProvider.notifier)
@@ -467,12 +485,20 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Decrypt with license'),
+      title: Text(_isFolder ? 'Merge into decrypted zip' : 'Decrypt with license'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_isFolder) ...[
+              Text(
+                'This pkg + license folder will be merged into a single '
+                'decrypted zip; the folder is removed once that succeeds.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+            ],
             for (final mode in [
               VitaDownloadMode.pkgWithLicense,
               VitaDownloadMode.decryptToZip,
@@ -492,9 +518,12 @@ class _VitaLicenseDialogState extends ConsumerState<_VitaLicenseDialog> {
               ),
             const SizedBox(height: 8),
             Text(
-              'Apply retries fetching the zRIF license from the catalog. '
-              'If that keeps failing (e.g. a 404), open the title\'s '
-              'NoPayStation page, copy its zRIF, and paste it below instead:',
+              _isFolder
+                  ? 'Apply reuses the license already saved in this folder. '
+                      'To use a different one instead, paste a zRIF below:'
+                  : 'Apply retries fetching the zRIF license from the catalog. '
+                      'If that keeps failing (e.g. a 404), open the title\'s '
+                      'NoPayStation page, copy its zRIF, and paste it below instead:',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),

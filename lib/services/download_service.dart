@@ -23,6 +23,7 @@ import 'torrent_info.dart';
 import 'torrent_magnet.dart';
 import 'torrent_service.dart';
 import 'vita_decrypt_service.dart';
+import 'zrif_codec.dart';
 
 enum AddDownloadResult { added, duplicate }
 
@@ -1710,7 +1711,12 @@ class DownloadService {
         if (p.equals(pkgPath, movedPkgPath) == false) {
           await File(pkgPath).rename(movedPkgPath);
         }
+        // The .zrif text is kept (human-readable, and lets a later "decrypt
+        // with license" pass reuse it without re-fetching); work.bin is
+        // what Vita3K's own folder-import scan actually looks for.
         await File(p.join(gameDir.path, '$baseName.zrif')).writeAsString(zrif);
+        await File(p.join(gameDir.path, 'work.bin'))
+            .writeAsBytes(ZrifCodec.decodeToRif(zrif));
         return gameDir.path;
       case VitaDownloadMode.decryptToZip:
         final platformDir = await _storage.getPlatformDirectory(task.platform);
@@ -1726,29 +1732,76 @@ class DownloadService {
     }
   }
 
-  /// Manually (re)applies a Vita license to an already-completed `.pkg`
-  /// download — the fallback path for when [_maybeHandleVitaLicense]
-  /// bailed out (e.g. the catalog's ZRIF link 404s). If [manualZrif] is
-  /// given, it's used as-is instead of fetching from the catalog. Updates
-  /// and persists the task's [DownloadTask.filePath] on success; throws
-  /// on failure so the caller (UI) can surface the error directly, rather
-  /// than silently keeping the plain pkg like the automatic path does.
+  /// Manually (re)applies a Vita license to an already-completed download —
+  /// either a plain `.pkg` (the fallback path for when
+  /// [_maybeHandleVitaLicense] bailed out, e.g. the catalog's ZRIF link
+  /// 404s) or an existing pkg+license folder from [VitaDownloadMode.
+  /// pkgWithLicense] that the user now wants merged into a decrypted zip
+  /// instead. In the folder case, an existing `.zrif` file is reused as
+  /// the license source (no re-fetch) unless [manualZrif] overrides it,
+  /// and the folder is removed once its contents are merged into the zip.
+  ///
+  /// Updates and persists the task's [DownloadTask.filePath] on success;
+  /// throws on failure so the caller (UI) can surface the error directly,
+  /// rather than silently keeping the prior state like the automatic path
+  /// does.
   Future<void> applyVitaLicense(
     DownloadTask task,
     VitaDownloadMode mode, {
     String? manualZrif,
   }) async {
-    final pkgPath = task.filePath;
-    if (pkgPath == null || !await File(pkgPath).exists()) {
+    final taskPath = task.filePath;
+    if (taskPath == null) {
+      throw StateError('The downloaded .pkg file could not be found on disk.');
+    }
+
+    String pkgPath;
+    Directory? sourceFolder;
+    String? existingZrif;
+    if (await Directory(taskPath).exists()) {
+      sourceFolder = Directory(taskPath);
+      final pkgFile = sourceFolder
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.pkg'))
+          .firstOrNull;
+      if (pkgFile == null) {
+        throw StateError('No .pkg file found in $taskPath.');
+      }
+      pkgPath = pkgFile.path;
+      final zrifFile = sourceFolder
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.zrif'))
+          .firstOrNull;
+      if (zrifFile != null) {
+        existingZrif = (await zrifFile.readAsString()).trim();
+      }
+    } else if (await File(taskPath).exists()) {
+      pkgPath = taskPath;
+    } else {
       throw StateError('The downloaded .pkg file could not be found on disk.');
     }
 
     final manual = manualZrif?.trim();
     final zrif = (manual != null && manual.isNotEmpty)
         ? manual
-        : await _fetchVitaZrif(task);
+        : (existingZrif != null && existingZrif.isNotEmpty)
+            ? existingZrif
+            : await _fetchVitaZrif(task);
 
     final finalPath = await _applyVitaLicenseWithZrif(task, pkgPath, mode, zrif);
+
+    // pkgWithLicense round-tripping back onto itself (same folder) needs
+    // no cleanup; decryptToZip out of an existing folder leaves the empty
+    // source folder behind once its pkg is consumed — remove it now that
+    // its contents are merged into the zip.
+    if (sourceFolder != null && !p.equals(finalPath, sourceFolder.path)) {
+      if (await sourceFolder.exists()) {
+        await sourceFolder.delete(recursive: true);
+      }
+    }
+
     final updatedTask = task.copyWith(filePath: finalPath);
     _activeTasks[task.id] = updatedTask;
     await _db.updateDownload(updatedTask);
