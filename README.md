@@ -157,6 +157,7 @@ Output is `db/romdb.db`. Adding a new source = drop a folder under `db/sources/<
 | `webview_flutter`             | IA login flow                           |
 | `pigeon`                      | Type-safe Dart ↔ Kotlin bridge (torrent + extraction) |
 | `libtorrent4j` (Android)      | BitTorrent runtime with file priorities |
+| `pkg2zip` (vendored, Android) | Decrypts PS Vita `.pkg` files (with a zRIF license) to a NoNpDrm-format zip |
 
 ## Disclaimer
 
@@ -167,6 +168,7 @@ romgi is a tool for downloading content; it does not host any ROMs or copyrighte
 - **Data Sources**: MiNERVA Archive, Internet Archive, NoPayStation, MarioCube
 - **Inspiration**: [pkgi-psp](https://github.com/bucanero/pkgi-psp), [Kekatsu-DS](https://github.com/cavv-dev/Kekatsu-DS)
 - **Framework**: [Flutter](https://flutter.dev/)
+- **Vendored Code**: [pkg2zip](https://github.com/mmozeiko/pkg2zip) by mmozeiko (public domain / Unlicense) — vendored unmodified at `android/app/src/main/cpp/pkg2zip/` to decrypt PS Vita `.pkg` downloads into an install-ready zip
 
 ## License
 
