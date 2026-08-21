@@ -85,6 +85,27 @@ class RomGridCard extends StatelessWidget {
                       left: 4,
                       child: RetroAchievementsOverlayBadge(entry: entry),
                     ),
+                  if (entry.platform == 'mac')
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      child: Tooltip(
+                        message:
+                            'Live result from Internet Archive, not the offline catalog',
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.podcasts,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

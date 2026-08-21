@@ -22,6 +22,7 @@ class SettingsState {
   final String debridProviderId;
   final bool metadataEnabled;
   final VitaDownloadMode vitaDownloadMode;
+  final bool macintoshGardenSearchEnabled;
   final bool isLoading;
 
   const SettingsState({
@@ -38,6 +39,7 @@ class SettingsState {
     this.debridProviderId = 'torbox',
     this.metadataEnabled = true,
     this.vitaDownloadMode = VitaDownloadMode.pkgOnly,
+    this.macintoshGardenSearchEnabled = false,
     this.isLoading = false,
   });
 
@@ -61,6 +63,7 @@ class SettingsState {
     String? debridProviderId,
     bool? metadataEnabled,
     VitaDownloadMode? vitaDownloadMode,
+    bool? macintoshGardenSearchEnabled,
     bool? isLoading,
   }) {
     return SettingsState(
@@ -81,6 +84,8 @@ class SettingsState {
       debridProviderId: debridProviderId ?? this.debridProviderId,
       metadataEnabled: metadataEnabled ?? this.metadataEnabled,
       vitaDownloadMode: vitaDownloadMode ?? this.vitaDownloadMode,
+      macintoshGardenSearchEnabled:
+          macintoshGardenSearchEnabled ?? this.macintoshGardenSearchEnabled,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -116,6 +121,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyDebridProviderId = 'debrid_provider_id';
   static const String _keyMetadataEnabled = 'metadata_enabled';
   static const String _keyVitaDownloadMode = 'vita_download_mode';
+  static const String _keyMacintoshGardenSearchEnabled =
+      'macintosh_garden_search_enabled';
 
   SettingsNotifier() : super(const SettingsState()) {
     _loadSettings();
@@ -150,6 +157,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final vitaDownloadModeIndex = prefs.getInt(_keyVitaDownloadMode) ?? 0;
     final vitaDownloadMode = VitaDownloadMode.values[vitaDownloadModeIndex.clamp(
         0, VitaDownloadMode.values.length - 1)];
+    final macintoshGardenSearchEnabled =
+        prefs.getBool(_keyMacintoshGardenSearchEnabled) ?? false;
 
     // Load platform-specific paths
     final platformPaths = <String, String>{};
@@ -179,6 +188,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       debridProviderId: debridProviderId,
       metadataEnabled: metadataEnabled,
       vitaDownloadMode: vitaDownloadMode,
+      macintoshGardenSearchEnabled: macintoshGardenSearchEnabled,
       isLoading: false,
     );
   }
@@ -280,6 +290,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(vitaDownloadMode: mode);
   }
 
+  Future<void> setMacintoshGardenSearchEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyMacintoshGardenSearchEnabled, value);
+    state = state.copyWith(macintoshGardenSearchEnabled: value);
+  }
+
   Future<void> setMaxConcurrentDownloads(int value) async {
     final clamped = value.clamp(0, 10);
     final prefs = await SharedPreferences.getInstance();
@@ -300,6 +316,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await prefs.remove(_keyDebridProviderId);
     await prefs.remove(_keyMetadataEnabled);
     await prefs.remove(_keyVitaDownloadMode);
+    await prefs.remove(_keyMacintoshGardenSearchEnabled);
 
     for (final key in prefs.getKeys().toList()) {
       if (key.startsWith(_keyPlatformPaths) ||
