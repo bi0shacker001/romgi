@@ -98,6 +98,7 @@ class PlatformNames {
     'amiga': 'Amiga',
     'fmt': 'FM Towns',
     'pip': 'Pippin',
+    'mac': 'Classic Macintosh',
     'c64': 'Commodore 64',
     'dos': 'DOS',
     'pc': 'PC',
