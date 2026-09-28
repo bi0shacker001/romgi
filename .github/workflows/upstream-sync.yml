@@ -17,8 +17,6 @@ jobs:
   sync-main:
     name: Merge upstream into main
     runs-on: ubuntu-latest
-    outputs:
-      main_sha: ${{ steps.report.outputs.main_sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,23 +54,26 @@ jobs:
         if: steps.merge.outputs.conflict == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          cat > /tmp/issue-body.md <<BODY
+          The scheduled upstream-sync workflow could not merge caprado/romgi's
+          main into our main -- a real conflict, left untouched rather than
+          force-resolved. Run: $RUN_URL
+
+          Resolve by hand:
+          ```
+          git fetch upstream main
+          git checkout main
+          git merge upstream/main
+          # resolve, then
+          git push origin HEAD:main
+          ```
+          BODY
           gh issue create \
             --repo "${{ github.repository }}" \
             --title "Upstream sync conflict: main vs caprado/romgi main" \
-            --body "The scheduled upstream-sync workflow could not merge caprado/romgi's \`main\` into our \`main\` -- a real conflict, left untouched rather than force-resolved. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Resolve by hand:
-\`\`\`
-git fetch upstream main
-git checkout main
-git merge upstream/main
-# resolve, then
-git push origin HEAD:main
-\`\`\`"
-
-      - id: report
-        run: echo "main_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            --body-file /tmp/issue-body.md
 
   sync-branches:
     name: Sync feature branches with main
@@ -126,16 +127,23 @@ git push origin HEAD:main
         if: steps.merge.outputs.conflict == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ matrix.branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          cat > /tmp/issue-body.md <<BODY
+          The scheduled upstream-sync workflow could not merge main into
+          $BRANCH -- a real conflict, left untouched rather than
+          force-resolved. Run: $RUN_URL
+
+          Resolve by hand:
+          ```
+          git checkout $BRANCH
+          git merge main
+          # resolve, then
+          git push origin HEAD:$BRANCH
+          ```
+          BODY
           gh issue create \
             --repo "${{ github.repository }}" \
-            --title "Upstream sync conflict: ${{ matrix.branch }} vs main" \
-            --body "The scheduled upstream-sync workflow could not merge \`main\` into \`${{ matrix.branch }}\` -- a real conflict, left untouched rather than force-resolved. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Resolve by hand:
-\`\`\`
-git checkout ${{ matrix.branch }}
-git merge main
-# resolve, then
-git push origin HEAD:${{ matrix.branch }}
-\`\`\`"
+            --title "Upstream sync conflict: $BRANCH vs main" \
+            --body-file /tmp/issue-body.md
