@@ -70,10 +70,16 @@ jobs:
           git push origin HEAD:main
           \`\`\`
           BODY
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "Upstream sync conflict: main vs caprado/romgi main" \
-            --body-file /tmp/issue-body.md
+          title="Upstream sync conflict: main vs caprado/romgi main"
+          existing=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$title\"" --json title -q ".[] | select(.title == \"$title\") | .title")
+          if [ -n "$existing" ]; then
+            echo "issue already open, not filing a duplicate"
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "$title" \
+              --body-file /tmp/issue-body.md
+          fi
 
   sync-branches:
     name: Sync feature branches with main
@@ -143,7 +149,13 @@ jobs:
           git push origin HEAD:$BRANCH
           \`\`\`
           BODY
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "Upstream sync conflict: $BRANCH vs main" \
-            --body-file /tmp/issue-body.md
+          title="Upstream sync conflict: $BRANCH vs main"
+          existing=$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$title\"" --json title -q ".[] | select(.title == \"$title\") | .title")
+          if [ -n "$existing" ]; then
+            echo "issue already open, not filing a duplicate"
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "$title" \
+              --body-file /tmp/issue-body.md
+          fi
