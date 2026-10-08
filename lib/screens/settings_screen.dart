@@ -752,7 +752,7 @@ class _UpdateTile extends ConsumerWidget {
       case UpdateStatus.upToDate:
         return 'This is the newest build. Tap to check again';
       case UpdateStatus.unavailable:
-        return 'This build was not published by CI, so it has no update channel';
+        return 'This build has no update channel; whatever installed it updates it';
       case UpdateStatus.available:
         return 'Version ${state.availableUpdate?.version} is available';
       case UpdateStatus.downloading:

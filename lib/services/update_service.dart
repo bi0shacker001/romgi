@@ -105,9 +105,9 @@ class UpdateService {
        _releaseTag = releaseTag,
        _buildNumber = buildNumber;
 
-  /// False for a build CI did not stamp with its channel (a local build, or
-  /// one embedded elsewhere that is updated by whatever installed it): it
-  /// has nothing to compare against, so it never offers an update.
+  /// False for a build CI did not stamp with its channel: a local build, or
+  /// the app embedded as a droidtop plugin, which droidtop updates as a
+  /// bundle. It has nothing to compare against, so it never offers an APK.
   bool get checksForUpdates => _releaseTag.isNotEmpty && _buildNumber > 0;
 
   /// This build's own CI run number, 0 when unstamped.
