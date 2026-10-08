@@ -298,6 +298,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyVitaDownloadMode, mode.index);
     state = state.copyWith(vitaDownloadMode: mode);
+  }
+
   Future<void> setThreeDsBoot9Path(String? path) async {
     final prefs = await SharedPreferences.getInstance();
 
