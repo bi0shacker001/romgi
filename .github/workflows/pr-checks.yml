@@ -92,6 +92,7 @@ jobs:
         run: |
           branch="${{ github.head_ref || github.ref_name }}"
           echo "safe_branch=${branch//\//-}" >> "$GITHUB_OUTPUT"
+          echo "app_version=$(sed -n 's/^version: *//p' pubspec.yaml)" >> "$GITHUB_OUTPUT"
 
       # Bumps android/app/revision.txt (read by build.gradle.kts to stamp
       # "-rN" onto versionName) and commits it back so it persists across
@@ -115,12 +116,16 @@ jobs:
           flutter build apk --debug
           --dart-define=SCREENSCRAPER_DEV_ID=${{ secrets.SCREENSCRAPER_DEV_ID }}
           --dart-define=SCREENSCRAPER_DEV_PASSWORD=${{ secrets.SCREENSCRAPER_DEV_PASSWORD }}
+          --dart-define=ROMGI_RELEASE_TAG=build-${{ steps.meta.outputs.safe_branch }}
+          --dart-define=ROMGI_BUILD_NUMBER=${{ github.run_number }}
 
       - name: Build release APK
         run: >
           flutter build apk --release
           --dart-define=SCREENSCRAPER_DEV_ID=${{ secrets.SCREENSCRAPER_DEV_ID }}
           --dart-define=SCREENSCRAPER_DEV_PASSWORD=${{ secrets.SCREENSCRAPER_DEV_PASSWORD }}
+          --dart-define=ROMGI_RELEASE_TAG=build-${{ steps.meta.outputs.safe_branch }}
+          --dart-define=ROMGI_BUILD_NUMBER=${{ github.run_number }}
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -159,6 +164,12 @@ jobs:
             `${{ steps.meta.outputs.safe_branch }}` — not a stable release,
             but marked non-prerelease so update-tracking tools (e.g.
             Obtainium) pick it up without manual approval.
+
+            The in-app updater reads the two lines below (UpdateChannel in
+            lib/services/update_service.dart); keep their format.
+
+            romgi-build: ${{ github.run_number }}
+            romgi-version: ${{ steps.meta.outputs.app_version }}
           files: |
             romgi-${{ steps.meta.outputs.safe_branch }}-debug.apk
             romgi-${{ steps.meta.outputs.safe_branch }}-release.apk

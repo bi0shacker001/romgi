@@ -675,6 +675,7 @@ class _UpdateTile extends ConsumerWidget {
           trailing: _buildTrailingWidget(context, ref, updateState),
           onTap:
               updateState.status == UpdateStatus.idle ||
+                  updateState.status == UpdateStatus.upToDate ||
                   updateState.status == UpdateStatus.error
               ? () => ref.read(updateProvider.notifier).checkForUpdate()
               : null,
@@ -694,6 +695,10 @@ class _UpdateTile extends ConsumerWidget {
         return Icons.system_update;
       case UpdateStatus.checking:
         return Icons.refresh;
+      case UpdateStatus.upToDate:
+        return Icons.check_circle_outline;
+      case UpdateStatus.unavailable:
+        return Icons.update_disabled;
       case UpdateStatus.available:
         return Icons.download;
       case UpdateStatus.downloading:
@@ -723,6 +728,10 @@ class _UpdateTile extends ConsumerWidget {
         return 'Check for Updates';
       case UpdateStatus.checking:
         return 'Checking for Updates...';
+      case UpdateStatus.upToDate:
+        return 'Up to Date';
+      case UpdateStatus.unavailable:
+        return 'Updates Not Available';
       case UpdateStatus.available:
         return 'Update Available';
       case UpdateStatus.downloading:
@@ -740,6 +749,10 @@ class _UpdateTile extends ConsumerWidget {
         return 'Tap to check for new versions';
       case UpdateStatus.checking:
         return 'Please wait...';
+      case UpdateStatus.upToDate:
+        return 'This is the newest build. Tap to check again';
+      case UpdateStatus.unavailable:
+        return 'This build was not published by CI, so it has no update channel';
       case UpdateStatus.available:
         return 'Version ${state.availableUpdate?.version} is available';
       case UpdateStatus.downloading:
@@ -784,6 +797,8 @@ class _UpdateTile extends ConsumerWidget {
           icon: const Icon(Icons.refresh),
           onPressed: () => ref.read(updateProvider.notifier).checkForUpdate(),
         );
+      case UpdateStatus.unavailable:
+        return null;
       default:
         return const Icon(Icons.chevron_right);
     }
